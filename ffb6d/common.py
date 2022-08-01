@@ -27,6 +27,23 @@ class ConfigRandLA:
     num_sub_points = [num_points // 4, num_points // 16, num_points // 64, num_points // 256]
 
 
+class ConfigTrans:
+    #image_size = 64 #verified
+    patch_size = 1
+    num_classes = 2 #object + background
+    dim = 128
+    depth = 2
+    heads = 2
+    mlp_dim = 256
+    pool = 'cls'
+    channels = 3
+    dim_head = 2
+    dropout = 0.
+    emb_dropout = 0.
+
+    d_out = [32]
+
+
 class Config:
     def __init__(self, ds_name='ycb', cls_type=''):
         self.dataset_name = ds_name
@@ -54,8 +71,8 @@ class Config:
         ensure_fd(self.log_traininfo_dir)
 
         self.n_total_epoch = 25
-        self.mini_batch_size = 3
-        self.val_mini_batch_size = 3
+        self.mini_batch_size = 1  #was 3
+        self.val_mini_batch_size = 1   #was 3
         self.test_mini_batch_size = 1
 
         self.n_sample_points = 480 * 640 // 24  # Number of input points
@@ -136,7 +153,7 @@ class Config:
 
             lm_r_pth = os.path.join(self.lm_root, "dataset_config/models_info.yml")
             lm_r_file = open(os.path.join(lm_r_pth), "r")
-            self.lm_r_lst = yaml.load(lm_r_file)
+            self.lm_r_lst = yaml.load(lm_r_file, Loader=yaml.Loader)
 
             self.val_nid_ptn = "/data/6D_Pose_Data/datasets/LINEMOD/pose_nori_lists/{}_real_val.nori.list"
 
