@@ -7,7 +7,6 @@ from __future__ import (
     unicode_literals,
 )
 import os
-import pandas as pd
 import tqdm
 import cv2
 import torch
@@ -15,12 +14,14 @@ import argparse
 import torch.nn as nn
 import numpy as np
 import pickle as pkl
-from common import Config, ConfigRandLA
-from models.ffb6d import FFB6D
+from common import Config, ConfigRandLA, ConfigTrans
+#from models.ffb6d import FFB6D
+from models.attentionffb import AttFFB6D as FFB6D
 from datasets.ycb.ycb_dataset import Dataset as YCB_Dataset
 from datasets.linemod.linemod_dataset import Dataset as LM_Dataset
 from utils.pvn3d_eval_utils_kpls import cal_frame_poses, cal_frame_poses_lm
 from utils.basic_utils import Basic_Utils
+import pandas as pd
 try:
     from neupeak.utils.webcv2 import imshow, waitKey
 except ImportError:
@@ -98,12 +99,9 @@ def cal_view_pred_pose(model, data, epoch=0, obj_id=-1):
             elif data[key].dtype in [torch.int32, torch.int16]:
                 cu_dt[key] = data[key].long().cuda()
         end_points = model(cu_dt)
-
         end_points_df = pd.DataFrame(end_points.items())
-        # print(end_points_df.columns)
-        end_points_df.to_csv(
-            '/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/endpoints_df.csv')
-
+        #print(end_points_df.columns)
+        #end_points_df.to_csv('~/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/endpoints_df_attffb.csv')
         _, classes_rgbd = torch.max(end_points['pred_rgbd_segs'], 1)
 
         pcld = cu_dt['cld_rgb_nrm'][:, :3, :].permute(0, 2, 1).contiguous()
@@ -171,8 +169,9 @@ def main():
     )
 
     rndla_cfg = ConfigRandLA
+    trans_cfg = ConfigTrans
     model = FFB6D(
-        n_classes=config.n_objects, n_pts=config.n_sample_points, rndla_cfg=rndla_cfg,
+        n_classes=config.n_objects, n_pts=config.n_sample_points, rndla_cfg=rndla_cfg, trans_cfg=trans_cfg,
         n_kps=config.n_keypoints
     )
     model.cuda()

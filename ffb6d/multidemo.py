@@ -7,7 +7,6 @@ from __future__ import (
     unicode_literals,
 )
 import os
-import pandas as pd
 import tqdm
 import cv2
 import torch
@@ -15,12 +14,15 @@ import argparse
 import torch.nn as nn
 import numpy as np
 import pickle as pkl
-from common import Config, ConfigRandLA
-from models.ffb6d import FFB6D
+from common import Config, ConfigRandLA, ConfigTrans
+#from models.super_original_ffb6d import FFB6D
+#from models.ffb6d import FFB6D
+from models.attentionffb import AttFFB6D as FFB6D
 from datasets.ycb.ycb_dataset import Dataset as YCB_Dataset
 from datasets.linemod.linemod_dataset import Dataset as LM_Dataset
 from utils.pvn3d_eval_utils_kpls import cal_frame_poses, cal_frame_poses_lm
 from utils.basic_utils import Basic_Utils
+import pandas as pd
 try:
     from neupeak.utils.webcv2 import imshow, waitKey
 except ImportError:
@@ -84,6 +86,9 @@ def load_checkpoint(model=None, optimizer=None, filename="checkpoint"):
 
 
 def cal_view_pred_pose(model, data, epoch=0, obj_id=-1):
+    bgr_list = []
+    ori_bgr_list = []
+    pts_list = []
     model.eval()
     with torch.set_grad_enabled(False):
         cu_dt = {}
@@ -98,12 +103,9 @@ def cal_view_pred_pose(model, data, epoch=0, obj_id=-1):
             elif data[key].dtype in [torch.int32, torch.int16]:
                 cu_dt[key] = data[key].long().cuda()
         end_points = model(cu_dt)
-
         end_points_df = pd.DataFrame(end_points.items())
-        # print(end_points_df.columns)
-        end_points_df.to_csv(
-            '/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/endpoints_df.csv')
-
+        #print(end_points_df.columns)
+        #end_points_df.to_csv('~/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/endpoints_df_attffb.csv')
         _, classes_rgbd = torch.max(end_points['pred_rgbd_segs'], 1)
 
         pcld = cu_dt['cld_rgb_nrm'][:, :3, :].permute(0, 2, 1).contiguous()
@@ -126,13 +128,18 @@ def cal_view_pred_pose(model, data, epoch=0, obj_id=-1):
         ori_rgb = np_rgb.copy()
         for cls_id in cu_dt['cls_ids'][0].cpu().numpy():
             idx = np.where(pred_cls_ids == cls_id)[0]
+            #print('Nachi: Generic cls_id: ',cls_id)   #1s
             if len(idx) == 0:
+                #print('Nachi: Failed to find cls_id: ',cls_id)     #0s
                 continue
             pose = pred_pose_lst[idx[0]]
             if args.dataset == "ycb":
                 obj_id = int(cls_id[0])
             mesh_pts = bs_utils.get_pointxyz(obj_id, ds_type=args.dataset).copy()
             mesh_pts = np.dot(mesh_pts, pose[:, :3].T) + pose[:, 3]
+            #nachi
+            #maxdist = mesh_pts
+            #print('Nachi mesh points diff: ', maxdist)
             if args.dataset == "ycb":
                 K = config.intrinsic_matrix["ycb_K1"]
             else:
@@ -140,6 +147,8 @@ def cal_view_pred_pose(model, data, epoch=0, obj_id=-1):
             mesh_p2ds = bs_utils.project_p3d(mesh_pts, 1.0, K)
             color = bs_utils.get_label_color(obj_id, n_obj=22, mode=2)
             np_rgb = bs_utils.draw_p2ds(np_rgb, mesh_p2ds, color=color)
+            #imshow('mid_loop_{}'.format(cls_id), np_rgb)
+            #waitKey()
         vis_dir = os.path.join(config.log_eval_dir, "pose_vis")
         ensure_fd(vis_dir)
         f_pth = os.path.join(vis_dir, "{}.jpg".format(epoch))
@@ -150,12 +159,29 @@ def cal_view_pred_pose(model, data, epoch=0, obj_id=-1):
             bgr = np_rgb[:, :, ::-1]
             ori_bgr = ori_rgb[:, :, ::-1]
         cv2.imwrite(f_pth, bgr)
-        if args.show:
-            imshow("projected_pose_rgb", bgr)
-            imshow("original_rgb", ori_bgr)
-            waitKey()
+        temp_img = bgr - ori_bgr
+
+        #Nachi: check if temp is sprayed, meaning no object ctr
+        #todo: make this check better
+        temp_intensity_mat = temp_img.sum(axis=2)
+        temp_non_zeros = np.nonzero(temp_intensity_mat)  #tuples, first shouldnt start with zeroes.
+        #print(temp_non_zeros)
+        if temp_non_zeros[0][1]==0:
+            temp_img = np.zeros(temp_img.shape)
+
+
+        bgr_list.append(bgr)
+        ori_bgr_list.append(ori_bgr)
+
+        #if args.show:
+        #    imshow("projected_pose_rgb", temp_img)      #480,640,3
+        #    imshow("original_rgb", ori_bgr)
+        #    waitKey()
     if epoch == 0:
         print("\n\nResults saved in {}".format(vis_dir))
+
+    return temp_img, ori_bgr
+    #return()
 
 
 def main():
@@ -165,28 +191,68 @@ def main():
     else:
         test_ds = LM_Dataset('test', cls_type=args.cls)
         obj_id = config.lm_obj_dict[args.cls]
+
     test_loader = torch.utils.data.DataLoader(
         test_ds, batch_size=config.test_mini_batch_size, shuffle=False,
         num_workers=20
     )
 
     rndla_cfg = ConfigRandLA
-    model = FFB6D(
-        n_classes=config.n_objects, n_pts=config.n_sample_points, rndla_cfg=rndla_cfg,
-        n_kps=config.n_keypoints
-    )
-    model.cuda()
+    trans_cfg = ConfigTrans
+
+    #base_best_path = '/home/nachiket/Documents/saved_models/FFB_basic_best/LineMOD/FFB6D_'
+    base_pere_attffb_best_path = '/home/nachiket/Documents/train_log_backup/peregrine_models_AttFFB6D/AttFFB6D_'
+    base_best_path = base_pere_attffb_best_path
+    models = {}
+    filenames = {}
+    for k in config.lm_obj_dict.keys():
+        models[k] = FFB6D(n_classes=config.n_objects, n_pts=config.n_sample_points, rndla_cfg=rndla_cfg, trans_cfg=trans_cfg, n_kps=config.n_keypoints)
+        #models[k] = FFB6D(n_classes=config.n_objects, n_pts=config.n_sample_points, rndla_cfg=rndla_cfg, n_kps=config.n_keypoints)
+        filenames[k] = base_best_path+str(k)+'_best.pth.tar'
+
+    #model = FFB6D(    n_classes=config.n_objects, n_pts=config.n_sample_points, rndla_cfg=rndla_cfg, trans_cfg=trans_cfg, n_kps=config.n_keypoints)
+    #model.cuda()
 
     # load status from checkpoint
-    if args.checkpoint is not None:
-        load_checkpoint(
-            model, None, filename=args.checkpoint[:-8]
-        )
+    #if args.checkpoint is not None:
+    #    load_checkpoint(
+    #        model, None, filename=args.checkpoint[:-8]
+    #    )
 
+    pcount=0
     for i, data in tqdm.tqdm(
         enumerate(test_loader), leave=False, desc="val"
     ):
-        cal_view_pred_pose(model, data, epoch=i, obj_id=obj_id)
+        pcount+=1
+        if pcount>5:
+            break
+
+        predicted_points_list = []
+        oriboylist = []
+        for k in config.lm_obj_dict.keys():
+            obj_id = config.lm_obj_dict[k]
+            model = models[k]
+            model.cuda()
+            load_checkpoint(model, None, filename=filenames[k][:-8])
+
+            new_pts, oriboy = cal_view_pred_pose(model, data, epoch=i, obj_id=obj_id)
+            predicted_points_list.append(new_pts)
+            oriboylist.append(oriboy)
+
+        ori = oriboylist[0]
+        for img in predicted_points_list:
+            #imshow('ppoints: ',img)
+            #waitKey()
+            if np.count_nonzero(img) > 0:
+                ori = ori + img
+
+        if args.show:
+            imshow("projected_pose_rgb", ori)
+            imshow("original_rgb", oriboylist[0])
+            waitKey()
+
+
+
 
 
 if __name__ == "__main__":

@@ -1,10 +1,19 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from models.attentionNet import Attention, ViT, Transformer
 from models.cnn.pspnet import PSPNet
 import models.pytorch_utils as pt_utils
 from models.RandLA.RandLANet import Network as RandLANet
 
+from common import Config, ConfigRandLA, ConfigTrans
+from utils.basic_utils import Basic_Utils
+
+
+#import vit-pytorch
+from einops import rearrange, repeat
+from einops.layers.torch import Rearrange
+from attentionNet import Attention, FeedForward, ViT, pair
 
 psp_models = {
     'resnet18': lambda: PSPNet(sizes=(1, 2, 3, 6), psp_size=512, deep_features_size=256, backend='resnet18'),
@@ -13,9 +22,9 @@ psp_models = {
 }
 
 
-class FFB6D(nn.Module):
+class AttFFB6D(nn.Module):
     def __init__(
-        self, n_classes, n_pts, rndla_cfg, n_kps=8
+        self, n_classes, n_pts, rndla_cfg, trans_cfg, n_kps=8
     ):
         super().__init__()
 
@@ -23,7 +32,7 @@ class FFB6D(nn.Module):
         self.n_cls = n_classes
         self.n_pts = n_pts
         self.n_kps = n_kps
-        cnn = psp_models['resnet34'.lower()]()
+        cnn = psp_models['resnet18'.lower()]()
 
         rndla = RandLANet(rndla_cfg)
 
@@ -128,35 +137,115 @@ class FFB6D(nn.Module):
                 )
             )
 
+
+        ####################todo: transformer stage ##################
+        #may even run parallel from this point to compare#
+        #todo: must resize image into single line with position code embedding#
+        #self.concatenated_features = nn.Linear(self.up_rndla_oc[-1]+self.up_rgb_oc[-1], self.up_rndla_oc[-1]+self.up_rgb_oc[-1])
+        #trans_cfg.image_size = self.up_rndla_oc[-1]+self.up_rgb_oc[-1]
+        #trans_cfg.image_size = 12800 #1d
+        #trans_cfg.channels = self.up_rndla_oc[-1]+self.up_rgb_oc[-1]
+
+        #self.concatenated_features = (pt_utils.Seq(self.up_rndla_oc[-1] + self.up_rgb_oc[-1]).conv1d(128, bn=True, activation=None))
+
+        #num_patches = (image_height // patch_height) * (image_width // patch_width)
+        #patch_dim = trans_cfg.channels * patch_height * patch_width
+        patch_width = 1
+        patch_height = 1
+        image_height = 1
+        image_width = 12800
+        trans_cfg.channels = 128
+        patch_dim = trans_cfg.channels * patch_height * patch_width
+        num_patches = (image_height // patch_height) * (image_width // patch_width)
+        self.pool = trans_cfg.pool
+        # patch_dim = 12800
+
+        trans_cfg.dim=128
+
+        #maybe convolute to reduce size
+        #self.size_reduction = (pt_utils.Seq(self.up_rndla_oc[-1] + self.up_rgb_oc[-1])
+        #                       .conv1d(64, kernel_size=3, stride=3, bn=True, activation=nn.ReLU())
+        #                       .conv1d(64, kernel_size=3, stride=3, bn=True, activation=nn.ReLU())
+        #                       .conv1d(64, kernel_size=3, stride=3, bn=True, activation=nn.ReLU()))
+
+
+        assert trans_cfg.pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
+
+        self.to_patch_embedding = nn.Sequential(
+            #Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1=patch_height, p2=patch_width),
+            #Rearrange('b (h p1) (w p2) -> b (h w) (p1 p2)', p1=patch_height, p2=patch_width),
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1=patch_height, p2=patch_width),
+            nn.Linear(patch_dim, trans_cfg.dim),
+        )
+
+        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, trans_cfg.dim))
+        self.cls_token = nn.Parameter(torch.randn(1, 1, trans_cfg.dim))
+        self.dropout = nn.Dropout(trans_cfg.emb_dropout)
+
+
+        #output dim of last layer: self.up_rgb_oc[-1]
+
+
+        #OR: feed joint output as input.
+
+        self.transformer = Transformer(trans_cfg.dim, trans_cfg.depth, trans_cfg.heads, trans_cfg.dim_head, trans_cfg.mlp_dim, trans_cfg.dropout)
+        #first remove embedding layer, then restore the
+        self.revert_from_transformer = Rearrange('b p c -> b c p')
+        #self.to_latent = nn.Identity()
+
+        #self.mlp_head = nn.Sequential(
+        #    nn.LayerNorm(trans_cfg.dim),  #trans_cfg.dim
+        #    nn.Linear(trans_cfg.dim, self.n_cls)
+        #)
+
+        #todo:dont use prediction headers, end with attention+MLP(remove last layers of MLP) #
+
         # ####################### prediction headers #############################
         # We use 3D keypoint prediction header for pose estimation following PVN3D
         # You can use different prediction headers for different downstream tasks.
-        #print('Size before prediction headers')
-        #print(self.up_rndla_oc[-1])
-        #print(self.up_rgb_oc[-1])
+
+
+        #self.rgbd_seg_layer = nn.Sequential(
+        #    nn.LayerNorm(trans_cfg.dim),  #trans_cfg.dim
+        #    nn.Linear(trans_cfg.dim, self.n_cls)
+        #)
+
+        #self.ctr_ofst_layer = nn.Sequential(
+        #    nn.LayerNorm(trans_cfg.dim),  # trans_cfg.dim
+        #    nn.Linear(trans_cfg.dim, 3)
+        #)
+
+        #self.kp_ofst_layer = nn.Sequential(
+        #    nn.LayerNorm(trans_cfg.dim),  # trans_cfg.dim
+        #    nn.Linear(trans_cfg.dim, n_kps*3)
+        #)
+
+        self.transformer_oc = 128
         self.rgbd_seg_layer = (
-            pt_utils.Seq(self.up_rndla_oc[-1] + self.up_rgb_oc[-1])
-            .conv1d(128, bn=True, activation=nn.ReLU())
-            .conv1d(128, bn=True, activation=nn.ReLU())
-            .conv1d(128, bn=True, activation=nn.ReLU())
+            pt_utils.Seq(self.transformer_oc*2)
+            .conv1d(128*2, bn=True, activation=nn.ReLU())
+            .conv1d(128*2, bn=True, activation=nn.ReLU())
+            .conv1d(128*2, bn=True, activation=nn.ReLU())
             .conv1d(n_classes, activation=None)
         )
 
         self.ctr_ofst_layer = (
-            pt_utils.Seq(self.up_rndla_oc[-1]+self.up_rgb_oc[-1])
-            .conv1d(128, bn=True, activation=nn.ReLU())
-            .conv1d(128, bn=True, activation=nn.ReLU())
-            .conv1d(128, bn=True, activation=nn.ReLU())
+            pt_utils.Seq(self.transformer_oc*2)
+            .conv1d(128*2, bn=True, activation=nn.ReLU())
+            .conv1d(128*2, bn=True, activation=nn.ReLU())
+            .conv1d(128*2, bn=True, activation=nn.ReLU())
             .conv1d(3, activation=None)
         )
 
         self.kp_ofst_layer = (
-            pt_utils.Seq(self.up_rndla_oc[-1]+self.up_rgb_oc[-1])
-            .conv1d(128, bn=True, activation=nn.ReLU())
-            .conv1d(128, bn=True, activation=nn.ReLU())
-            .conv1d(128, bn=True, activation=nn.ReLU())
+            pt_utils.Seq(self.transformer_oc*2)
+            .conv1d(128*2, bn=True, activation=nn.ReLU())
+            .conv1d(128*2, bn=True, activation=nn.ReLU())
+            .conv1d(128*2, bn=True, activation=nn.ReLU())
             .conv1d(n_kps*3, activation=None)
         )
+
+
 
     @staticmethod
     def random_sample(feature, pool_idx):
@@ -225,18 +314,14 @@ class FFB6D(nn.Module):
         # rndla pre
         xyz, p_emb = self._break_up_pc(inputs['cld_rgb_nrm'])
         p_emb = inputs['cld_rgb_nrm']
-
         #print('NACHI: initial input size')
-        #print(inputs['rgb'].size())            #1,3,480,640
-        #print(inputs['cld_rgb_nrm'].size())    #1,9,12800
-
-
+        #print(inputs['rgb'].size())             #1,3,480,640
+        #print(inputs['cld_rgb_nrm'].size())     #1,9,12800
         p_emb = self.rndla_pre_stages(p_emb)
         p_emb = p_emb.unsqueeze(dim=3)  # Batch*channel*npoints*1
-
         #print('NACHI: end of prep')
-        #print(rgb_emb.size())  #1,64,120,160
-        #print(p_emb.size())    #1,8,12800,1
+        #print(rgb_emb.size())                   #1,64,120,160
+        #print(p_emb.size())                     #1,8,12800,1
 
         # ###################### encoding stages #############################
         ds_emb = []
@@ -274,10 +359,10 @@ class FFB6D(nn.Module):
             )
             ds_emb.append(p_emb)
 
-        #print('NACHI: End of Encoding')
-        #print(rgb_emb.size())  #1,1024,60,80
-        #print(p_emb.size())    #1,512,50,1
 
+        #print('NACHI: End of Encoding')
+        #print(rgb_emb.size())           #1,1024,60,80
+        #print(p_emb.size())             #1,512,50,1
         # ###################### decoding stages #############################
         n_up_layers = len(self.rndla_up_stages)
         for i_up in range(n_up_layers-1):
@@ -314,15 +399,13 @@ class FFB6D(nn.Module):
             )
 
         #print('NACHI: end of decoding')
-        #print(rgb_emb.size())  # 1, 64, 240, 320   #1,64,240,320
-        #print(p_emb.size())                        #1,64,3200,1
+        #print(rgb_emb.size())  #1, 64, 240, 320
+        #print(p_emb.size())     #1, 64, 3200, 1
 
         # final upsample layers:
         rgb_emb = self.cnn_up_stages[n_up_layers-1](rgb_emb)
-
         #print('NACHI: final RGB upsample')
-        #print(rgb_emb.size())  #1,64,480,640
-
+        #print(rgb_emb.size())   #1,64,480,640
         f_interp_i = self.nearest_interpolation(
             p_emb, inputs['cld_interp_idx%d' % (0)]
         )
@@ -332,11 +415,10 @@ class FFB6D(nn.Module):
 
         bs, di, _, _ = rgb_emb.size()
         rgb_emb_c = rgb_emb.view(bs, di, -1)
+        #print(rgb_emb_c.size())      #1,64,307200
         choose_emb = inputs['choose'].repeat(1, di, 1)
-
         #print('Nachi: Choose embedding')
-        #print(choose_emb.size())   #1,64,12800
-
+        #print(choose_emb.size())    #1,64,12800
         rgb_emb_c = torch.gather(rgb_emb_c, 2, choose_emb).contiguous()
 
         # Use DenseFusion in final layer, which will hurt performance due to overfitting
@@ -344,33 +426,85 @@ class FFB6D(nn.Module):
 
         # Use simple concatenation. Good enough for fully fused RGBD feature.
         rgbd_emb = torch.cat([rgb_emb_c, p_emb], dim=1)
+        #concat gives 128 dim, which is unusable as an image to transformer which assumes an (h,w) before rearrange
+        #we do not rearrange as we use aggregated features as transformer input.
 
+        ##TODO: add vit forward here?
+        #x = self.concatenated_features(rgbd_emb)
         #print('NACHI: output dims of ffb')
-        #print(rgb_emb_c.size())  # 1,64,12800
-        #print(p_emb.size())  # 1,64,12800
-        #print(rgbd_emb.size())  # 1,128,12800
+        #print(rgb_emb.size())   #1,64,480,640
+        #print(rgb_emb_c.size()) #1,64,12800
+        #print(p_emb.size())     #1,64,12800
+        #print(rgbd_emb.size())  #1,128,12800
 
+        #print(rgbd_emb.unsqueeze(-1).size())
+
+        #x = self.size_reduction(rgbd_emb)
+        #print('NACHI: post patch embedding')
+        x = self.to_patch_embedding(rgbd_emb.unsqueeze(-1))
+        b, n, _ = x.shape
+        #print(x.size())     #1,12800,128
+
+        cls_tokens = repeat(self.cls_token, '1 1 d -> b 1 d', b=b)
+        #print(cls_tokens.size())    #1,1,128
+        x = torch.cat((cls_tokens, x), dim=1)
+        #print('Nachi: post cls cat')
+        #print(x.size())         #1,12801,128
+        x += self.pos_embedding[:, :(n + 1)]
+        #print(x.size())         #1,12801,128
+        x = self.dropout(x)
+        #print('NACHI: Pre Transformer')
+        #print(x.size())     #1,12801,128
+        x = self.transformer(x)
+        #print('NACHI:Post Transformer')
+        #print(x.size())     #1,12801,128
+
+        #todo: new day
+        x = self.revert_from_transformer(x)
+        #print(x.size())     #1,128,12801
+        x_data = x[:,:,1:]
+        #print(x_data.size())            #1,128, 12800
+        x_cls_token = x[:,:,0].unsqueeze(-1)
+        #print(x_cls_token.size())   #1,128,1
+        #rearrange transformer output back to 1,128,12800,1 and so on
+
+        #x = x.mean(dim=1) if self.pool == 'mean' else x[:, 0]
+        #print(x.size())
+        #x = self.to_latent(x)
+        #print('NACHI: post latent')
+        #print(x.size())     #1,128
+        #lastx = self.mlp_head(x)
+
+        #print('NACHI: Final MLP output')
+        #print(lastx.size())
+        #print(lastx)
+        #return lastx
+        x = x_data
+        #Nachi: fuse new
+        x = torch.cat([x, rgbd_emb], dim=1)
         # ###################### prediction stages #############################
-        rgbd_segs = self.rgbd_seg_layer(rgbd_emb)
-        pred_kp_ofs = self.kp_ofst_layer(rgbd_emb)
-        pred_ctr_ofs = self.ctr_ofst_layer(rgbd_emb)
-
+        rgbd_segs = self.rgbd_seg_layer(x)
+        pred_kp_ofs = self.kp_ofst_layer(x)
+        pred_ctr_ofs = self.ctr_ofst_layer(x)
         #print('NACHI: post prediction stages')
-        #print(rgbd_segs.size())  # 1,2,12800
-        #print(pred_kp_ofs.size())  # 1,24,12800
-        #print(pred_ctr_ofs.size())  # 1,3,12800
-
+        #print(rgbd_segs.size())     #1,2,12800
+        #print(pred_kp_ofs.size())   #1,24,12800
+        #print(pred_ctr_ofs.size())  #1,3,12800
         pred_kp_ofs = pred_kp_ofs.view(
             bs, self.n_kps, 3, -1
         ).permute(0, 1, 3, 2).contiguous()
         pred_ctr_ofs = pred_ctr_ofs.view(
             bs, 1, 3, -1
         ).permute(0, 1, 3, 2).contiguous()
-
-        # return rgbd_seg, pred_kp_of, pred_ctr_of
+        #print('NACHI: kp and ctr transform')
+        #print(pred_kp_ofs.size())   #1,8,12800,3
+        #print(pred_ctr_ofs.size())  #1,1,12800,3
+        #return rgbd_seg, pred_kp_of, pred_ctr_of
         end_points['pred_rgbd_segs'] = rgbd_segs
         end_points['pred_kp_ofs'] = pred_kp_ofs
         end_points['pred_ctr_ofs'] = pred_ctr_ofs
+
+        #end_points['pred_rgbd_segs'] = lastx
 
         return end_points
 
@@ -407,9 +541,10 @@ class DenseFusion(nn.Module):
 def main():
     from common import ConfigRandLA
     rndla_cfg = ConfigRandLA
+    trans_cfg = ConfigTrans
 
     n_cls = 22
-    model = FFB6D(n_cls, rndla_cfg.num_points, rndla_cfg)
+    model = AttFFB6D(n_cls, rndla_cfg.num_points, rndla_cfg, trans_cfg)
     print(model)
 
     print(

@@ -290,6 +290,9 @@ def model_fn_decorator(
                 if args.local_rank == 0:
                     writer.add_scalars('loss', loss_dict, it)
                     writer.add_scalars('train_acc', acc_dict, it)
+                    #print('NACHI: Add Scalars sizes:')
+                    #print(loss_dict.keys(), loss_dict[list(loss_dict.keys())[0]])
+                    #print(acc_dict.keys(), acc_dict[list(acc_dict.keys())[0]])
             if is_test and test_pose:
                 cld = cu_dt['cld_rgb_nrm'][:, :3, :].permute(0, 2, 1).contiguous()
 
@@ -416,8 +419,12 @@ class Trainer(object):
                     print(k, v, file=of)
         if args.local_rank == 0:
             #Nachi: removed next line
+            #print('NACHI:FINAL DIMS SCALAR')
+            #print(acc_dict.keys(), acc_dict[list(acc_dict.keys())[0].size()])
+            for this_in, val in enumerate(acc_dict['acc_rgbd']):
+                writer.add_scalar(tag='val_acc', scalar_value=val, global_step=this_in)
             #writer.add_scalars('val_acc', acc_dict, it)
-            pass
+            #pass
 
         return total_loss / count, eval_dict
 
@@ -566,6 +573,7 @@ def train():
     torch.manual_seed(0)
 
     if not args.eval_net:
+        #todo: Nachi: if args.cls=='all': loop through all labels, then append/concatenate.
         train_ds = dataset_desc.Dataset('train', cls_type=args.cls)
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_ds)
         train_loader = torch.utils.data.DataLoader(
