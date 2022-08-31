@@ -30,7 +30,7 @@ class ConfigRandLA:
 class ConfigTrans:
     #image_size = 64 #verified
     patch_size = 1
-    num_classes = 2 #object + background
+    num_classes = 13 + 1 #object + background
     dim = 128
     depth = 2
     heads = 2
