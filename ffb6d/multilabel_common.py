@@ -63,7 +63,7 @@ class Config:
             os.path.join(self.exp_dir, 'train_log', self.dataset_name)
         )
         ensure_fd(self.log_dir)
-        self.model_name_tag = 'any2'
+        self.model_name_tag = 'any3'
         self.log_model_dir = os.path.join(self.log_dir, 'checkpoints', self.model_name_tag)   #Nachi: self.cls_type
         ensure_fd(self.log_model_dir)
         self.log_eval_dir = os.path.join(self.log_dir, 'eval_results', self.model_name_tag)   #self.cls_type

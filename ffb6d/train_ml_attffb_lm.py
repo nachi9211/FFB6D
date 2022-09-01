@@ -32,8 +32,8 @@ import models.pytorch_utils as pt_utils
 from models.multilabel_attentionffb import AttFFB6D as FFB6D
 from models.att_loss import OFLoss, FocalLoss
 #from models.loss import OFLoss, FocalLoss
-from utils.pvn3d_eval_utils_kpls import TorchEval
-from utils.basic_utils import Basic_Utils
+from utils.multilabel_pvn3d_eval_utils_kpls import TorchEval
+from utils.multilabel_basic_utils import Basic_Utils
 import datasets.linemod.linemod_dataset_ml as dataset_desc
 
 from apex.parallel import DistributedDataParallel
@@ -509,6 +509,8 @@ class Trainer(object):
                 eval_frequency = wid // 15
             else:
                 eval_frequency = wid // 6
+            #todo: Nachi
+            eval_freq = 25
             to_eval = (it % eval_frequency) == 0
             return to_eval, eval_frequency
 
@@ -726,7 +728,7 @@ def train():
 
     checkpoint_fd = config.log_model_dir
 
-    model_name = 'any2'
+    model_name = 'any3'
     trainer = Trainer(
         model,
         model_fn,
