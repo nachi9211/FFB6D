@@ -138,9 +138,8 @@ class AttFFB6D(nn.Module):
             )
 
 
-        ####################todo: transformer stage ##################
+        #################### transformer stage ##################
         #may even run parallel from this point to compare#
-        #todo: must resize image into single line with position code embedding#
         #self.concatenated_features = nn.Linear(self.up_rndla_oc[-1]+self.up_rgb_oc[-1], self.up_rndla_oc[-1]+self.up_rgb_oc[-1])
         #trans_cfg.image_size = self.up_rndla_oc[-1]+self.up_rgb_oc[-1]
         #trans_cfg.image_size = 12800 #1d
@@ -197,8 +196,6 @@ class AttFFB6D(nn.Module):
         #    nn.LayerNorm(trans_cfg.dim),  #trans_cfg.dim
         #    nn.Linear(trans_cfg.dim, self.n_cls)
         #)
-
-        #todo:dont use prediction headers, end with attention+MLP(remove last layers of MLP) #
 
         # ####################### prediction headers #############################
         # We use 3D keypoint prediction header for pose estimation following PVN3D
@@ -429,7 +426,7 @@ class AttFFB6D(nn.Module):
         #concat gives 128 dim, which is unusable as an image to transformer which assumes an (h,w) before rearrange
         #we do not rearrange as we use aggregated features as transformer input.
 
-        ##TODO: add vit forward here?
+        ## vit forward here
         #x = self.concatenated_features(rgbd_emb)
         #print('NACHI: output dims of ffb')
         #print(rgb_emb.size())   #1,64,480,640
@@ -459,7 +456,6 @@ class AttFFB6D(nn.Module):
         #print('NACHI:Post Transformer')
         #print(x.size())     #1,12801,128
 
-        #todo: new day
         x = self.revert_from_transformer(x)
         #print(x.size())     #1,128,12801
         x_data = x[:,:,1:]

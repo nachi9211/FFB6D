@@ -6,9 +6,9 @@ import numpy as np
 import pickle as pkl
 import concurrent.futures
 
-from common import Config
-from utils.basic_utils import Basic_Utils
-from utils.meanshift_pytorch import MeanShiftTorch
+from multilabel_common import Config
+from utils.multilabel_basic_utils import Basic_Utils
+from utils.multilabel_meanshift_pytorch import MeanShiftTorch
 try:
     from neupeak.utils.webcv2 import imshow, waitKey
 except Exception:
@@ -87,7 +87,9 @@ def cal_frame_poses(
         for icls, cls_id in enumerate(pred_cls_ids):
             cls_msk = (mask == cls_id)
             ms = MeanShiftTorch(bandwidth=radius)
-            ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
+            #todo: use ms.fit_multi_clus instead, p&c
+            #ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
+            ctr, ctr_labels = ms.fit_multi_clus(pred_ctr[cls_msk, :])
             ctrs.append(ctr.detach().contiguous().cpu().numpy())
         try:
             ctrs = torch.from_numpy(np.array(ctrs).astype(np.float32)).cuda()
@@ -122,7 +124,9 @@ def cal_frame_poses(
 
         cls_voted_kps = pred_kp[:, cls_msk, :]
         ms = MeanShiftTorch(bandwidth=radius)
-        ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
+        # todo: use ms.fit_multi_clus instead, p&c
+        #ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
+        ctr, ctr_labels = ms.fit_multi_clus(pred_ctr[cls_msk, :])
         if ctr_labels.sum() < 1:
             ctr_labels[0] = 1
         if use_ctr:
@@ -243,7 +247,9 @@ def cal_frame_poses_lm(
     else:
         cls_voted_kps = pred_kp[:, cls_msk, :]
         ms = MeanShiftTorch(bandwidth=radius)
-        ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
+        # todo: use ms.fit_multi_clus instead, p&c
+        #ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
+        ctr, ctr_labels = ms.fit_multi_clus(pred_ctr[cls_msk, :])
         if ctr_labels.sum() < 1:
             ctr_labels[0] = 1
         if use_ctr:
