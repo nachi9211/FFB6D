@@ -52,7 +52,6 @@ wv2, sv2, vv2 = unzip_vals(event_val_acc_avg, 'val_acc_avg')
 print(len(wv2), len(sv2), len(vv2))
 
 print(len(w_times), len(step_nums), len(vals))
-print(v1[-20:])
 
 df = pd.DataFrame()
 import matplotlib.pyplot as plt

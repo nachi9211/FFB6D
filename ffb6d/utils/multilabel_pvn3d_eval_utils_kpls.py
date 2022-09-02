@@ -88,8 +88,8 @@ def cal_frame_poses(
             cls_msk = (mask == cls_id)
             ms = MeanShiftTorch(bandwidth=radius)
             #todo: use ms.fit_multi_clus instead, p&c
-            #ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
-            ctr, ctr_labels = ms.fit_multi_clus(pred_ctr[cls_msk, :])
+            ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
+            #ctr, ctr_labels = ms.fit_multi_clus(pred_ctr[cls_msk, :])
             ctrs.append(ctr.detach().contiguous().cpu().numpy())
         try:
             ctrs = torch.from_numpy(np.array(ctrs).astype(np.float32)).cuda()
@@ -110,6 +110,7 @@ def cal_frame_poses(
         except Exception:
             pass
 
+    #todo: might have to replicate below code for LineMod
     # 3D keypoints voting and least squares fitting for pose parameters estimation.
     pred_pose_lst = []
     pred_kps_lst = []
@@ -125,8 +126,8 @@ def cal_frame_poses(
         cls_voted_kps = pred_kp[:, cls_msk, :]
         ms = MeanShiftTorch(bandwidth=radius)
         # todo: use ms.fit_multi_clus instead, p&c
-        #ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
-        ctr, ctr_labels = ms.fit_multi_clus(pred_ctr[cls_msk, :])
+        ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
+        #ctr, ctr_labels = ms.fit_multi_clus(pred_ctr[cls_msk, :])
         if ctr_labels.sum() < 1:
             ctr_labels[0] = 1
         if use_ctr:
@@ -220,7 +221,7 @@ def eval_one_frame_pose(
 
 
 # ###############################LineMOD Evaluation###############################
-
+#todo: check cal_frame_poses_lst and set use_ctr_clus_flter=True
 def cal_frame_poses_lm(
     pcld, mask, ctr_of, pred_kp_of, use_ctr, n_cls, use_ctr_clus_flter, obj_id,
     debug=False
@@ -240,6 +241,7 @@ def cal_frame_poses_lm(
         cls_kps = torch.zeros(n_cls, n_kps, 3).cuda()
 
     pred_pose_lst = []
+    #todo: make this cls_id change according to object? how will that work though?
     cls_id = 1
     cls_msk = mask == cls_id
     if cls_msk.sum() < 1:
@@ -248,8 +250,8 @@ def cal_frame_poses_lm(
         cls_voted_kps = pred_kp[:, cls_msk, :]
         ms = MeanShiftTorch(bandwidth=radius)
         # todo: use ms.fit_multi_clus instead, p&c
-        #ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
-        ctr, ctr_labels = ms.fit_multi_clus(pred_ctr[cls_msk, :])
+        ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
+        #ctr, ctr_labels = ms.fit_multi_clus(pred_ctr[cls_msk, :])
         if ctr_labels.sum() < 1:
             ctr_labels[0] = 1
         if use_ctr:

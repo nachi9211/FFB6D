@@ -40,14 +40,14 @@ class Dataset():
         self.root = os.path.join(self.config.lm_root, 'Linemod_preprocessed')
 
         #todo: remove cls_type and loop through all.
-        self.all_lst = {}
-        self.meta_lst = {}
+        self.all_lst = []
+        self.meta_lst = []
         if dataset_name == 'train':
-            self.rnd_lst = {}
-            self.fuse_lst = {}
-            self.real_lst = {}
+            self.rnd_lst = []
+            self.fuse_lst = []
+            self.real_lst = []
         else:
-            self.tst_lst = {}
+            self.tst_lst = []
 
 
         for cls_type in self.config.lm_obj_dict.keys():
@@ -72,6 +72,7 @@ class Dataset():
                     #self.root, 'renders/%s/*.pkl' % cls_type#Nachi: added 1
                 )
                 this_rnd_lst = glob(rnd_img_ptn)
+                #todo: make it so root+item_name gives objectpath
                 print("render data length: ", len(this_rnd_lst))
                 if len(this_rnd_lst) == 0:
                     warning = "Warning: "
@@ -85,6 +86,7 @@ class Dataset():
                     #self.root, 'fuse/%s/*.pkl' % cls_type#Nachi: added 1
                 )
                 this_fuse_lst = glob(fuse_img_ptn)
+                # todo: make it so root+item_name gives objectpath
                 print("fused data length: ", len(this_fuse_lst))
                 if len(this_fuse_lst) == 0:
                     warning = "Warning: "
@@ -92,12 +94,16 @@ class Dataset():
                     warning += "Please generate fused data from https://github.com/ethnhe/raster_triangle.\n"
                     print(colored(warning, "red", attrs=['bold']))
 
+                # todo: adding required str addages to items in list.
+                this_real_lst = ['data/'+str(cls_id).zfill(2)+'/'+x for x in this_real_lst]
+                this_fuse_lst = ['fuse/'+cls_type+'/'+x for x in this_fuse_lst]
+                this_rnd_lst = ['renders/'+cls_type+'/'+x for x in this_rnd_lst]
+
                 this_all_lst = this_real_lst + this_rnd_lst + this_fuse_lst
-                self.all_lst[cls_type] = this_all_lst
-                self.rnd_lst[cls_type] = this_rnd_lst
-                self.fuse_lst[cls_type] = this_fuse_lst
-                self.real_lst[cls_type] = this_real_lst
-                '''
+
+
+
+
                 temp = [self.all_lst.append(x) for x in this_all_lst]
                 del temp
                 temp = [self.real_lst.append(x) for x in this_real_lst]
@@ -106,12 +112,13 @@ class Dataset():
                 del temp
                 temp = [self.fuse_lst.append(x) for x in this_fuse_lst]
                 del temp
-                '''
+
 
             else:
                 self.add_noise = False
                 tst_img_pth = os.path.join(this_cls_root, "test.txt")
                 this_tst_lst = self.bs_utils.read_lines(tst_img_pth)
+                this_tst_lst = ['data/'+str(cls_id).zfill(2)+'/'+x for x in this_tst_lst]
                 this_all_lst = this_tst_lst
 
                 self.all_lst[cls_type] = this_all_lst
@@ -122,14 +129,11 @@ class Dataset():
                 temp = [self.all_lst.append(x) for x in this_all_lst]
                 del temp
                 '''
-        max_all_len = max([len(x) for x in self.all_lst.keys()])
-        print("{}_dataset_size: ".format(dataset_name), max_all_len)
-        #print("{}_dataset_size: ".format(dataset_name), len(self.all_lst))
-        self.minibatch_per_epoch = max_all_len // self.config.mini_batch_size
-        #self.minibatch_per_epoch = len(self.all_lst) // self.config.mini_batch_size
+        #todo: shuffle all_lst?
+        print("{}_dataset_size: ".format(dataset_name), len(self.all_lst))
+        self.minibatch_per_epoch = len(self.all_lst) // self.config.mini_batch_size
 
 
-    #todo: self lists are now dicts
     def real_syn_gen(self, real_ratio=0.3):
         if len(self.rnd_lst+self.fuse_lst) == 0:
             real_ratio = 1.0
@@ -213,7 +217,7 @@ class Dataset():
         return np.clip(img, 0, 255).astype(np.uint8)
 
 
-    def add_real_back(self, rgb, labels, dpt, dpt_msk, cls_root):     #todo: add cls_root
+    def add_real_back(self, rgb, labels, dpt, dpt_msk):     #todo: add cls_root
         real_item = self.real_gen()
         with Image.open(os.path.join(cls_root, "depth", real_item+'.png')) as di:
             real_dpt = np.array(di)
@@ -490,7 +494,7 @@ class Dataset():
             item_dict['normal_map'] = nrm_map[:, :, :3].astype(np.float32)
         return item_dict
 
-    def get_pose_gt_info(self, cld, labels, RT, cls_type):            #todo: check for self...cls_type, all_lst. DEFINITELY add cls_type var, all list will probably be adjusted
+    def get_pose_gt_info(self, cld, labels, RT):            #todo: check for self...cls_type, all_lst. DEFINITELY add cls_type var, all list will probably be adjusted
         RTs = np.zeros((self.config.n_objects, 3, 4))
         kp3ds = np.zeros((self.config.n_objects, self.config.n_keypoints, 3))
         ctr3ds = np.zeros((self.config.n_objects, 3))
