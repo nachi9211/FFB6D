@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 import os
-import sys
-
 import cv2
 import torch
 import os.path
@@ -12,6 +10,7 @@ from multilabel_common import Config
 import pickle as pkl
 from utils.multilabel_basic_utils import Basic_Utils
 import yaml
+import random
 import scipy.io as scio
 import scipy.misc
 from glob import glob
@@ -42,15 +41,14 @@ class Dataset():
         self.root = os.path.join(self.config.lm_root, 'Linemod_preprocessed')
 
         #todo: remove cls_type and loop through all.
-        self.all_lst = []
+        self.all_lst = {}
         self.meta_lst = {}
-        self.lst_sizes = {}
         if dataset_name == 'train':
-            self.rnd_lst = []
-            self.fuse_lst = []
-            self.real_lst = []
+            self.rnd_lst = {}
+            self.fuse_lst = {}
+            self.real_lst = {}
         else:
-            self.tst_lst = []
+            self.tst_lst = {}
 
 
         for cls_type in self.config.lm_obj_dict.keys():
@@ -70,12 +68,11 @@ class Dataset():
                 this_real_lst = self.bs_utils.read_lines(real_img_pth)
 
                 rnd_img_ptn = os.path.join(
-                    self.root, 'renders/%s/*99.pkl' % cls_type   #Nachi: added 1
+                    #self.root, 'renders/%s/*99.pkl' % cls_type   #Nachi: added 1
                     #self.root, 'renders/%s/*[7-9].pkl' % cls_type   # Nachi: added 1
-                    #self.root, 'renders/%s/*.pkl' % cls_type#Nachi: added 1
+                    self.root, 'renders/%s/*.pkl' % cls_type#Nachi: added 1
                 )
                 this_rnd_lst = glob(rnd_img_ptn)
-                #todo: make it so root+item_name gives objectpath
                 print("render data length: ", len(this_rnd_lst))
                 if len(this_rnd_lst) == 0:
                     warning = "Warning: "
@@ -84,12 +81,11 @@ class Dataset():
                     print(colored(warning, "red", attrs=['bold']))
 
                 fuse_img_ptn = os.path.join(
-                    self.root, 'fuse/%s/*99.pkl' % cls_type#Nachi: added 1
+                    #self.root, 'fuse/%s/*99.pkl' % cls_type#Nachi: added 1
                     #self.root, 'fuse/%s/*[7-9].pkl' % cls_type#Nachi: added 1
-                    #self.root, 'fuse/%s/*.pkl' % cls_type#Nachi: added 1
+                    self.root, 'fuse/%s/*.pkl' % cls_type#Nachi: added 1
                 )
                 this_fuse_lst = glob(fuse_img_ptn)
-                # todo: make it so root+item_name gives objectpath
                 print("fused data length: ", len(this_fuse_lst))
                 if len(this_fuse_lst) == 0:
                     warning = "Warning: "
@@ -97,23 +93,12 @@ class Dataset():
                     warning += "Please generate fused data from https://github.com/ethnhe/raster_triangle.\n"
                     print(colored(warning, "red", attrs=['bold']))
 
-                # todo: adding required str addages to items in list.
-                #tmp = [x for x in this_real_lst if len(x) > 4]
-                #print('NACHI: BEFORE ADDING PREFIX  :', tmp)
-                this_real_lst = ['data/'+str(cls_id).zfill(2)+'/'+x for x in this_real_lst]
-                #this_fuse_lst = ['fuse/'+cls_type+'/'+x for x in this_fuse_lst]
-                #this_rnd_lst = ['renders/'+cls_type+'/'+x for x in this_rnd_lst]
-
                 this_all_lst = this_real_lst + this_rnd_lst + this_fuse_lst
-
-                allsize = len(this_all_lst)
-                realsize = len(this_real_lst)
-                fusesize = len(this_fuse_lst)
-                rendersize = len(this_rnd_lst)
-
-                self.lst_sizes[cls_type] = [allsize, realsize , fusesize , rendersize , 0]
-
-
+                self.all_lst[cls_type] = this_all_lst
+                self.rnd_lst[cls_type] = this_rnd_lst
+                self.fuse_lst[cls_type] = this_fuse_lst
+                self.real_lst[cls_type] = this_real_lst
+                '''
                 temp = [self.all_lst.append(x) for x in this_all_lst]
                 del temp
                 temp = [self.real_lst.append(x) for x in this_real_lst]
@@ -122,58 +107,60 @@ class Dataset():
                 del temp
                 temp = [self.fuse_lst.append(x) for x in this_fuse_lst]
                 del temp
-
+                '''
 
             else:
                 self.add_noise = False
                 tst_img_pth = os.path.join(this_cls_root, "test.txt")
                 this_tst_lst = self.bs_utils.read_lines(tst_img_pth)
-                this_tst_lst = ['data/'+str(cls_id).zfill(2)+'/'+x for x in this_tst_lst]
                 this_all_lst = this_tst_lst
 
-                allsize = len(this_all_lst)
-                tstsize = len(this_tst_lst)
-
-                self.lst_sizes[cls_type] = [allsize, 0, 0, 0, tstsize]
-
+                self.all_lst[cls_type] = this_all_lst
+                self.tst_lst[cls_type] = this_tst_lst
+                '''
                 temp = [self.tst_lst.append(x) for x in this_tst_lst]
                 del temp
                 temp = [self.all_lst.append(x) for x in this_all_lst]
                 del temp
+                '''
+        max_all_len = min([len(self.all_lst[x]) for x in self.all_lst.keys()])
+        print("{}_dataset_size: ".format(dataset_name), max_all_len)
+        #print("{}_dataset_size: ".format(dataset_name), len(self.all_lst))
+        self.minibatch_per_epoch = max_all_len // self.config.mini_batch_size
+        print('NACHI: minibatch pre epoch size')
+        print(self.minibatch_per_epoch)
+        #self.minibatch_per_epoch = len(self.all_lst) // self.config.mini_batch_size
 
-        #todo: shuffle all_lst?
-        print("{}_dataset_size: ".format(dataset_name), len(self.all_lst))
-        self.minibatch_per_epoch = len(self.all_lst) // self.config.mini_batch_size
 
-    def real_syn_gen(self, real_ratio=0.3):
-        if len(self.rnd_lst+self.fuse_lst) == 0:
+    #todo: self lists are now dicts
+    def real_syn_gen(self, cls_type, real_ratio=0.3):
+        if len(self.rnd_lst[cls_type]+self.fuse_lst[cls_type]) == 0:
             real_ratio = 1.0
         if self.rng.rand() < real_ratio:  # real
-            n_imgs = len(self.real_lst)
+            n_imgs = len(self.real_lst[cls_type])
             idx = self.rng.randint(0, n_imgs)
-            pth = self.real_lst[idx]
+            pth = self.real_lst[cls_type][idx]
             return pth
         else:
-            if len(self.fuse_lst) > 0 and len(self.rnd_lst) > 0:
+            if len(self.fuse_lst[cls_type]) > 0 and len(self.rnd_lst[cls_type]) > 0:
                 fuse_ratio = 0.4
-            elif len(self.fuse_lst) == 0:
+            elif len(self.fuse_lst[cls_type]) == 0:
                 fuse_ratio = 0.
             else:
                 fuse_ratio = 1.
             if self.rng.rand() < fuse_ratio:
-                idx = self.rng.randint(0, len(self.fuse_lst))
-                pth = self.fuse_lst[idx]
+                idx = self.rng.randint(0, len(self.fuse_lst[cls_type]))
+                pth = self.fuse_lst[cls_type][idx]
             else:
-                idx = self.rng.randint(0, len(self.rnd_lst))
-                pth = self.rnd_lst[idx]
+                idx = self.rng.randint(0, len(self.rnd_lst[cls_type]))
+                pth = self.rnd_lst[cls_type][idx]
             return pth
 
-    # todo: added cls_types and list lengths
+    # todo: self lists are now dicts
     def real_gen(self, cls_type):
-        #n = len(self.real_lst)
-        n = self.lst_sizes[cls_type][1]
+        n = len(self.real_lst[cls_type])
         idx = self.rng.randint(0, n)
-        item = self.real_lst[idx]
+        item = self.real_lst[cls_type][idx]
         return item
 
     def rand_range(self, rng, lo, hi):
@@ -229,16 +216,10 @@ class Dataset():
         return np.clip(img, 0, 255).astype(np.uint8)
 
 
-    def add_real_back(self, rgb, labels, dpt, dpt_msk, cls_root):     #todo: add cls_root
-        ind1 = cls_root[:-1].rfind('/')
-        cls_id = cls_root[ind1+1:-1]
-        cls_type = list(self.config.lm_obj_dict.keys())[list(self.config.lm_obj_dict.values()).index(int(cls_id))]
-        #print('Nachi: CLSTYPE in add_real_back:  ', cls_root, cls_type)
-        real_item = self.real_gen(cls_type)
-        #todo: change real_item so that the name is correct again.
-        id1 = real_item.rfind('/')
-        real_item = real_item[id1 + 1:]
-        #print('Nachi: Corrected name in add_real_back:  ', real_item)
+    def add_real_back(self, rgb, labels, dpt, dpt_msk, cls_type):     #todo: add cls_type
+        cls_id = self.config.lm_obj_dict.get(cls_type)
+        cls_root = os.path.join(self.root, "data/%02d/" %cls_id)
+        real_item = self.real_gen(cls_type=cls_type)
         with Image.open(os.path.join(cls_root, "depth", real_item+'.png')) as di:
             real_dpt = np.array(di)
         with Image.open(os.path.join(cls_root, "mask", real_item+'.png')) as li:
@@ -272,27 +253,11 @@ class Dataset():
         dpt_3d = dpt_3d * msk[:, :, None]
         return dpt_3d
 
-    def get_item(self, item_name):      #todo: add variable for cls_id/type somehow. NEED: self.cls_id, self.cls_root, self.meta_file
-        #todo: cls_id must be part of item_name.
-        #print('NACHI GET ITEM START:  ', item_name)
-
-        ind1 = item_name.rfind('/')  #this is first /, find second / next
-        ind2 = item_name[:ind1].rfind('/')
-        cls_deets = item_name[ind2+1:ind1]
-        #print(cls_deets)
-        if len(cls_deets)>2:
-            cls_type = cls_deets
-            #cls_id = str(self.config.lm_obj_dict.get(cls_type)).zfill(2)
-            cls_id = self.config.lm_obj_dict.get(cls_type)
-        elif len(cls_deets)==2:
-            cls_id = int(cls_deets)
-            cls_type = list(self.config.lm_obj_dict.keys())[list(self.config.lm_obj_dict.values()).index(int(cls_id))]
-        else:
-            print('NACHI: CLS ID PROBLEMS:  ', cls_deets)
-
+    def get_item(self, item_name, cls_type):      #todo: add variable for cls_id/type somehow. NEED: self.cls_id, self.cls_root, self.meta_file
+        #todo: cls_id must be part of item_name. IT IS NOT. CHANGE ITEMNAME, OR ADD CLS_ID RANDOMNLY
+        cls_id = self.config.lm_obj_dict.get(cls_type)
         cls_root = os.path.join(self.root, "data/%02d/" % cls_id)
         meta_file = open(os.path.join(cls_root, 'gt.yml'), "r")
-
         if "pkl" in item_name:
             data = pkl.load(open(item_name, "rb"))
             dpt_mm = data['depth'] * 1000.
@@ -326,9 +291,6 @@ class Dataset():
                 #print(labels[rows, cols])
                 #print(self.cls_id)
         else:
-            id1 = item_name.rfind('/')
-            item_name = item_name[id1+1:]
-            #print('NACHI NOT PKL:  ', item_name)
             with Image.open(os.path.join(cls_root, "depth/{}.png".format(item_name))) as di:
                 dpt_mm = np.array(di)
             with Image.open(os.path.join(cls_root, "mask/{}.png".format(item_name))) as li:
@@ -373,7 +335,7 @@ class Dataset():
                 rgb = self.rgb_add_noise(rgb)
                 rgb_labels = labels.copy()
                 msk_dp = dpt_mm > 1e-6
-                rgb, dpt_mm = self.add_real_back(rgb, rgb_labels, dpt_mm, msk_dp, cls_root)       #todo: add arg: cls_root
+                rgb, dpt_mm = self.add_real_back(rgb, rgb_labels, dpt_mm, msk_dp, cls_type=cls_type)       #todo: add arg: cls_root
                 if self.rng.rand() > 0.8:
                     rgb = self.rgb_add_noise(rgb)
 
@@ -541,7 +503,7 @@ class Dataset():
         cls_ids = np.zeros((self.config.n_objects, 1))
         kp_targ_ofst = np.zeros((self.config.n_sample_points, self.config.n_keypoints, 3))
         ctr_targ_ofst = np.zeros((self.config.n_sample_points, 3))
-        #todo: enumerate through cls_id_lst? then we should not need cls_type input arg, especially for test?
+        #todo: enumerate through cls_id_lst?
         for i, cls_id in enumerate([1]):
             RTs[i] = RT
             r = RT[:, :3]
@@ -557,7 +519,7 @@ class Dataset():
             ctr_targ_ofst[msk_idx, :] = target_offset[msk_idx, :]
             cls_ids[i, :] = np.array([1])
 
-            self.minibatch_per_epoch = len(self.all_lst) // self.config.mini_batch_size
+            self.minibatch_per_epoch = len(self.all_lst[cls_type]) // self.config.mini_batch_size
             if self.config.n_keypoints == 8:
                 kp_type = 'farthest'
             else:
@@ -580,16 +542,22 @@ class Dataset():
         return len(self.all_lst)
 
     def __getitem__(self, idx):
+        #todo: Nachi: add random cls_type
+        cls_idx = random.randint(0, len(self.config.lm_obj_dict.keys())-1)
+        cls_type = list(self.config.lm_obj_dict.keys())[cls_idx]
+        cls_id = self.config.lm_obj_dict[list(self.config.lm_obj_dict.keys())[cls_idx]]
+
         if self.dataset_name == 'train':
-            item_name = self.real_syn_gen()
-            data = self.get_item(item_name)
+            item_name = self.real_syn_gen(cls_type=cls_type)
+            data = self.get_item(item_name, cls_type=cls_type)
             while data is None:
-                item_name = self.real_syn_gen()
-                data = self.get_item(item_name)
+                item_name = self.real_syn_gen(cls_type=cls_type)
+                data = self.get_item(item_name, cls_type=cls_type)
             return data
         else:
-            item_name = self.all_lst[idx]
-            return self.get_item(item_name)
+            item_name = self.all_lst[cls_type][idx]
+            data = self.get_item(item_name, cls_type=cls_type)
+            return data
 
 
 def main():

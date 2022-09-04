@@ -1,21 +1,21 @@
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 import pandas as pd
 
-#event_acc = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/train_acc/acc_rgbd')
-#event_loss_all = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/loss/loss_all')
-#event_loss_ctr = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/loss/loss_ctr_of')
-#event_loss_kp = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/loss/loss_kp_of')
-#event_loss_rgbd = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/loss/loss_rgbd_seg')
-#event_loss_target = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/loss/loss_target')
+#event_acc = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/all/train_acc/acc_rgbd')
+#event_loss_all = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/all/loss/loss_all')
+#event_loss_ctr = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/all/loss/loss_ctr_of')
+#event_loss_kp = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/all/loss/loss_kp_of')
+#event_loss_rgbd = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/all/loss/loss_rgbd_seg')
+#event_loss_target = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/all/loss/loss_target')
 
-event_acc = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/train_acc/acc_rgbd')
-event_loss_all = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/loss/loss_all')
-event_loss_ctr = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/loss/loss_ctr_of')
-event_loss_kp = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/loss/loss_kp_of')
-event_loss_rgbd = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/loss/loss_rgbd_seg')
-event_loss_target = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/loss/loss_target')
-#event_val_acc = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/val_acc/acc_rgbd')
-event_val_acc_avg = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/val_acc_avg/acc_rgbd')
+event_acc = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/any3/train_acc/acc_rgbd')
+event_loss_all = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/any3/loss/loss_all')
+event_loss_ctr = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/any3/loss/loss_ctr_of')
+event_loss_kp = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/any3/loss/loss_kp_of')
+event_loss_rgbd = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/any3/loss/loss_rgbd_seg')
+event_loss_target = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/any3/loss/loss_target')
+#event_val_acc = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/any2/val_acc/acc_rgbd')
+event_val_acc_avg = EventAccumulator('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/any3/val_acc_avg/acc_rgbd')
 
 event_acc.Reload()
 event_loss_all.Reload()
@@ -52,14 +52,13 @@ wv2, sv2, vv2 = unzip_vals(event_val_acc_avg, 'val_acc_avg')
 print(len(wv2), len(sv2), len(vv2))
 
 print(len(w_times), len(step_nums), len(vals))
-print(v1[-20:])
 
 df = pd.DataFrame()
 import matplotlib.pyplot as plt
 
 # plot lines
-plt.plot(step_nums[-380:], vals[-380:], label="train_acc")
-plt.plot(step_nums[-380:], v1[-380:], label="rgbd_loss")
+plt.plot(step_nums[-267:], vals[-267:], label="train_acc")
+plt.plot(step_nums[-267:], v1[-267:], label="rgbd_loss")
 #plt.plot(step_nums[-380:], vt[-380:], label="target_loss")
 #plt.plot(step_nums[-380:], va[-380:], label="total_loss")
 plt.legend()

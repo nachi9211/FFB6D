@@ -13,7 +13,7 @@ class ConfigRandLA:
     k_n = 16  # KNN
     num_layers = 4  # Number of layers
     num_points = 480 * 640 // 24  # Number of input points
-    num_classes = 22  # Number of valid classes
+    num_classes = 13+1  # Number of valid classes
     sub_grid_size = 0.06  # preprocess_parameter
 
     batch_size = 1  # Nachi batch_size during training
@@ -30,7 +30,7 @@ class ConfigRandLA:
 class ConfigTrans:
     #image_size = 64 #verified
     patch_size = 1
-    num_classes = 13 + 1 #object + background
+    num_classes = 15 + 1 #object + background 13
     dim = 128
     depth = 2
     heads = 2
@@ -63,11 +63,12 @@ class Config:
             os.path.join(self.exp_dir, 'train_log', self.dataset_name)
         )
         ensure_fd(self.log_dir)
-        self.log_model_dir = os.path.join(self.log_dir, 'checkpoints', self.cls_type)
+        self.model_name_tag = 'any3'
+        self.log_model_dir = os.path.join(self.log_dir, 'checkpoints', self.model_name_tag)   #Nachi: self.cls_type
         ensure_fd(self.log_model_dir)
-        self.log_eval_dir = os.path.join(self.log_dir, 'eval_results', self.cls_type)
+        self.log_eval_dir = os.path.join(self.log_dir, 'eval_results', self.model_name_tag)   #self.cls_type
         ensure_fd(self.log_eval_dir)
-        self.log_traininfo_dir = os.path.join(self.log_dir, 'train_info', self.cls_type)
+        self.log_traininfo_dir = os.path.join(self.log_dir, 'train_info', self.model_name_tag)    #self.cls_type
         ensure_fd(self.log_traininfo_dir)
 
         self.n_total_epoch = 1 #Nachi was 25
@@ -112,7 +113,7 @@ class Config:
             self.ycb_cls_lst = self.read_lines(self.ycb_cls_lst_p)
             self.ycb_sym_cls_ids = [13, 16, 19, 20, 21]
         else:  # linemod
-            self.n_objects = 13 + 1 #Nachi
+            self.n_objects = 15 + 1 #Nachi 13
             #self.n_objects = 1 + 1  # 1 object + background
             self.n_classes = self.n_objects
             self.lm_cls_lst = [
