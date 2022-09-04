@@ -81,13 +81,13 @@ def cal_frame_poses(
         cls_kps = torch.zeros(n_cls, n_kps, 3).cuda()
 
     # Use center clustering filter to improve the predicted mask.
+    #todo: maybe this is good as it uses mask>0 instead of mask=1
     pred_cls_ids = np.unique(mask[mask > 0].contiguous().cpu().numpy())
     if use_ctr_clus_flter:
         ctrs = []
         for icls, cls_id in enumerate(pred_cls_ids):
             cls_msk = (mask == cls_id)
             ms = MeanShiftTorch(bandwidth=radius)
-            #todo: use ms.fit_multi_clus instead, p&c
             ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
             #ctr, ctr_labels = ms.fit_multi_clus(pred_ctr[cls_msk, :])
             ctrs.append(ctr.detach().contiguous().cpu().numpy())
@@ -125,7 +125,6 @@ def cal_frame_poses(
 
         cls_voted_kps = pred_kp[:, cls_msk, :]
         ms = MeanShiftTorch(bandwidth=radius)
-        # todo: use ms.fit_multi_clus instead, p&c
         ctr, ctr_labels = ms.fit(pred_ctr[cls_msk, :])
         #ctr, ctr_labels = ms.fit_multi_clus(pred_ctr[cls_msk, :])
         if ctr_labels.sum() < 1:

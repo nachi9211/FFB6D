@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import os
+import sys
+
 import cv2
 import torch
 import os.path
@@ -41,7 +43,8 @@ class Dataset():
 
         #todo: remove cls_type and loop through all.
         self.all_lst = []
-        self.meta_lst = []
+        self.meta_lst = {}
+        self.lst_sizes = {}
         if dataset_name == 'train':
             self.rnd_lst = []
             self.fuse_lst = []
@@ -95,13 +98,20 @@ class Dataset():
                     print(colored(warning, "red", attrs=['bold']))
 
                 # todo: adding required str addages to items in list.
+                #tmp = [x for x in this_real_lst if len(x) > 4]
+                #print('NACHI: BEFORE ADDING PREFIX  :', tmp)
                 this_real_lst = ['data/'+str(cls_id).zfill(2)+'/'+x for x in this_real_lst]
-                this_fuse_lst = ['fuse/'+cls_type+'/'+x for x in this_fuse_lst]
-                this_rnd_lst = ['renders/'+cls_type+'/'+x for x in this_rnd_lst]
+                #this_fuse_lst = ['fuse/'+cls_type+'/'+x for x in this_fuse_lst]
+                #this_rnd_lst = ['renders/'+cls_type+'/'+x for x in this_rnd_lst]
 
                 this_all_lst = this_real_lst + this_rnd_lst + this_fuse_lst
 
+                allsize = len(this_all_lst)
+                realsize = len(this_real_lst)
+                fusesize = len(this_fuse_lst)
+                rendersize = len(this_rnd_lst)
 
+                self.lst_sizes[cls_type] = [allsize, realsize , fusesize , rendersize , 0]
 
 
                 temp = [self.all_lst.append(x) for x in this_all_lst]
@@ -121,18 +131,19 @@ class Dataset():
                 this_tst_lst = ['data/'+str(cls_id).zfill(2)+'/'+x for x in this_tst_lst]
                 this_all_lst = this_tst_lst
 
-                self.all_lst[cls_type] = this_all_lst
-                self.tst_lst[cls_type] = this_tst_lst
-                '''
+                allsize = len(this_all_lst)
+                tstsize = len(this_tst_lst)
+
+                self.lst_sizes[cls_type] = [allsize, 0, 0, 0, tstsize]
+
                 temp = [self.tst_lst.append(x) for x in this_tst_lst]
                 del temp
                 temp = [self.all_lst.append(x) for x in this_all_lst]
                 del temp
-                '''
+
         #todo: shuffle all_lst?
         print("{}_dataset_size: ".format(dataset_name), len(self.all_lst))
         self.minibatch_per_epoch = len(self.all_lst) // self.config.mini_batch_size
-
 
     def real_syn_gen(self, real_ratio=0.3):
         if len(self.rnd_lst+self.fuse_lst) == 0:
@@ -157,9 +168,10 @@ class Dataset():
                 pth = self.rnd_lst[idx]
             return pth
 
-    # todo: self lists are now dicts
-    def real_gen(self):
-        n = len(self.real_lst)
+    # todo: added cls_types and list lengths
+    def real_gen(self, cls_type):
+        #n = len(self.real_lst)
+        n = self.lst_sizes[cls_type][1]
         idx = self.rng.randint(0, n)
         item = self.real_lst[idx]
         return item
@@ -217,8 +229,16 @@ class Dataset():
         return np.clip(img, 0, 255).astype(np.uint8)
 
 
-    def add_real_back(self, rgb, labels, dpt, dpt_msk):     #todo: add cls_root
-        real_item = self.real_gen()
+    def add_real_back(self, rgb, labels, dpt, dpt_msk, cls_root):     #todo: add cls_root
+        ind1 = cls_root[:-1].rfind('/')
+        cls_id = cls_root[ind1+1:-1]
+        cls_type = list(self.config.lm_obj_dict.keys())[list(self.config.lm_obj_dict.values()).index(int(cls_id))]
+        #print('Nachi: CLSTYPE in add_real_back:  ', cls_root, cls_type)
+        real_item = self.real_gen(cls_type)
+        #todo: change real_item so that the name is correct again.
+        id1 = real_item.rfind('/')
+        real_item = real_item[id1 + 1:]
+        #print('Nachi: Corrected name in add_real_back:  ', real_item)
         with Image.open(os.path.join(cls_root, "depth", real_item+'.png')) as di:
             real_dpt = np.array(di)
         with Image.open(os.path.join(cls_root, "mask", real_item+'.png')) as li:
@@ -253,9 +273,26 @@ class Dataset():
         return dpt_3d
 
     def get_item(self, item_name):      #todo: add variable for cls_id/type somehow. NEED: self.cls_id, self.cls_root, self.meta_file
-        #todo: cls_id must be part of item_name. IT IS NOT. CHANGE ITEMNAME, OR ADD CLS_ID RANDOMNLY
-        #self.cls_root = os.path.join(self.root, "data/%02d/" % self.cls_id)
-        # meta_file = open(os.path.join(self.cls_root, 'gt.yml'), "r")
+        #todo: cls_id must be part of item_name.
+        #print('NACHI GET ITEM START:  ', item_name)
+
+        ind1 = item_name.rfind('/')  #this is first /, find second / next
+        ind2 = item_name[:ind1].rfind('/')
+        cls_deets = item_name[ind2+1:ind1]
+        #print(cls_deets)
+        if len(cls_deets)>2:
+            cls_type = cls_deets
+            #cls_id = str(self.config.lm_obj_dict.get(cls_type)).zfill(2)
+            cls_id = self.config.lm_obj_dict.get(cls_type)
+        elif len(cls_deets)==2:
+            cls_id = int(cls_deets)
+            cls_type = list(self.config.lm_obj_dict.keys())[list(self.config.lm_obj_dict.values()).index(int(cls_id))]
+        else:
+            print('NACHI: CLS ID PROBLEMS:  ', cls_deets)
+
+        cls_root = os.path.join(self.root, "data/%02d/" % cls_id)
+        meta_file = open(os.path.join(cls_root, 'gt.yml'), "r")
+
         if "pkl" in item_name:
             data = pkl.load(open(item_name, "rb"))
             dpt_mm = data['depth'] * 1000.
@@ -289,6 +326,9 @@ class Dataset():
                 #print(labels[rows, cols])
                 #print(self.cls_id)
         else:
+            id1 = item_name.rfind('/')
+            item_name = item_name[id1+1:]
+            #print('NACHI NOT PKL:  ', item_name)
             with Image.open(os.path.join(cls_root, "depth/{}.png".format(item_name))) as di:
                 dpt_mm = np.array(di)
             with Image.open(os.path.join(cls_root, "mask/{}.png".format(item_name))) as li:
@@ -494,14 +534,14 @@ class Dataset():
             item_dict['normal_map'] = nrm_map[:, :, :3].astype(np.float32)
         return item_dict
 
-    def get_pose_gt_info(self, cld, labels, RT):            #todo: check for self...cls_type, all_lst. DEFINITELY add cls_type var, all list will probably be adjusted
+    def get_pose_gt_info(self, cld, labels, RT, cls_type):            #todo: check for self...cls_type, all_lst. DEFINITELY add cls_type var, all list will probably be adjusted
         RTs = np.zeros((self.config.n_objects, 3, 4))
         kp3ds = np.zeros((self.config.n_objects, self.config.n_keypoints, 3))
         ctr3ds = np.zeros((self.config.n_objects, 3))
         cls_ids = np.zeros((self.config.n_objects, 1))
         kp_targ_ofst = np.zeros((self.config.n_sample_points, self.config.n_keypoints, 3))
         ctr_targ_ofst = np.zeros((self.config.n_sample_points, 3))
-        #todo: enumerate through cls_id_lst?
+        #todo: enumerate through cls_id_lst? then we should not need cls_type input arg, especially for test?
         for i, cls_id in enumerate([1]):
             RTs[i] = RT
             r = RT[:, :3]
@@ -517,7 +557,7 @@ class Dataset():
             ctr_targ_ofst[msk_idx, :] = target_offset[msk_idx, :]
             cls_ids[i, :] = np.array([1])
 
-            self.minibatch_per_epoch = len(self.all_lst[cls_type]) // self.config.mini_batch_size
+            self.minibatch_per_epoch = len(self.all_lst) // self.config.mini_batch_size
             if self.config.n_keypoints == 8:
                 kp_type = 'farthest'
             else:

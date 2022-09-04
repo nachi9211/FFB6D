@@ -34,7 +34,8 @@ from models.att_loss import OFLoss, FocalLoss
 #from models.loss import OFLoss, FocalLoss
 from utils.multilabel_pvn3d_eval_utils_kpls import TorchEval
 from utils.multilabel_basic_utils import Basic_Utils
-import datasets.linemod.linemod_dataset_ml as dataset_desc
+#import datasets.linemod.linemod_dataset_ml as dataset_desc
+import datasets.linemod.linemod_dataset_2 as dataset_desc
 
 from apex.parallel import DistributedDataParallel
 from apex.parallel import convert_syncbn_model
@@ -624,7 +625,6 @@ def train():
     if not args.eval_net:
         train_ds = dataset_desc.Dataset('train')
         print('NACHI: DATASET DTAILS: ')
-        print(type(train_ds))
         val_ds = dataset_desc.Dataset('test')
 
         #Nachi tabbed below lines fwd
