@@ -410,6 +410,55 @@ class TorchEval():
         adds_auc_lst = []
         add_s_auc_lst = []
         cls_id = obj_id
+        #todo: this seems to need looping, look at above func.
+        if (obj_id) in config_lm.lm_sym_cls_ids:
+            self.cls_add_s_dis[cls_id] = self.cls_adds_dis[cls_id]
+        else:
+            self.cls_add_s_dis[cls_id] = self.cls_add_dis[cls_id]
+        self.cls_add_s_dis[0] += self.cls_add_s_dis[cls_id]
+        add_auc = bs_utils_lm.cal_auc(self.cls_add_dis[cls_id])
+        adds_auc = bs_utils_lm.cal_auc(self.cls_adds_dis[cls_id])
+        add_s_auc = bs_utils_lm.cal_auc(self.cls_add_s_dis[cls_id])
+        add_auc_lst.append(add_auc)
+        adds_auc_lst.append(adds_auc)
+        add_s_auc_lst.append(add_s_auc)
+        d = config_lm.lm_r_lst[obj_id]['diameter'] / 1000.0 * 0.1
+        print("obj_id: ", obj_id, "0.1 diameter: ", d)
+        add = np.mean(np.array(self.cls_add_dis[cls_id]) < d) * 100
+        adds = np.mean(np.array(self.cls_adds_dis[cls_id]) < d) * 100
+
+        cls_type = config_lm.lm_id2obj_dict[obj_id]
+        print(obj_id, cls_type)
+        print("***************add auc:\t", add_auc)
+        print("***************adds auc:\t", adds_auc)
+        print("***************add(-s) auc:\t", add_s_auc)
+        print("***************add < 0.1 diameter:\t", add)
+        print("***************adds < 0.1 diameter:\t", adds)
+
+        sv_info = dict(
+            add_dis_lst=self.cls_add_dis,
+            adds_dis_lst=self.cls_adds_dis,
+            add_auc_lst=add_auc_lst,
+            adds_auc_lst=adds_auc_lst,
+            add_s_auc_lst=add_s_auc_lst,
+            add=add,
+            adds=adds,
+        )
+        occ = "occlusion" if test_occ else ""
+        sv_pth = os.path.join(
+            config_lm.log_eval_dir,
+            'pvn3d_eval_cuda_{}_{}_{}_{}.pkl'.format(
+                cls_type, occ, add, adds
+            )
+        )
+        pkl.dump(sv_info, open(sv_pth, 'wb'))
+
+    def cal_lm_add2(self, obj_id, test_occ=False):
+        add_auc_lst = []
+        adds_auc_lst = []
+        add_s_auc_lst = []
+        cls_id = obj_id
+        #todo: this seems to need looping, look at above func.
         if (obj_id) in config_lm.lm_sym_cls_ids:
             self.cls_add_s_dis[cls_id] = self.cls_adds_dis[cls_id]
         else:
@@ -458,6 +507,7 @@ class TorchEval():
         use_ctr_clus_flter=True, use_ctr=True, obj_id=0, kp_type='farthest',
         ds='ycb'
     ):
+        #todo: have to adapt all lm cases to multitype
         bs, n_kps, n_pts, c = pred_kp_ofs.size()
         masks = masks.long()
         cls_ids = cls_ids.long()

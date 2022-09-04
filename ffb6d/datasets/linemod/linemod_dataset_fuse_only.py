@@ -62,111 +62,48 @@ class Dataset():
             meta_file = open(os.path.join(this_cls_root, 'gt.yml'), "r")
 
             self.meta_lst[cls_type] = yaml.load(meta_file, Loader=yaml.Loader)
+
+            fuse_img_ptn = os.path.join(
+                self.root, 'fuse/%s/*99.pkl' % cls_type  # Nachi: added 1
+                # self.root, 'fuse/%s/*[7-9].pkl' % cls_type#Nachi: added 1
+                # self.root, 'fuse/%s/*.pkl' % cls_type#Nachi: added 1
+            )
+            this_fuse_lst = glob(fuse_img_ptn)
+            # todo: make it so root+item_name gives objectpath
+            print("fused data length: ", len(this_fuse_lst))
+            if len(this_fuse_lst) == 0:
+                warning = "Warning: "
+                warning += "Trainnig without fused data will hurt model performance \n"
+                warning += "Please generate fused data from https://github.com/ethnhe/raster_triangle.\n"
+                print(colored(warning, "red", attrs=['bold']))
+
+            this_all_lst = this_fuse_lst
+
+            allsize = len(this_all_lst)
+            # realsize = len(this_real_lst)
+            fusesize = len(this_fuse_lst)
+
+            self.lst_sizes[cls_type] = [allsize, 0, fusesize, 0, 0]
+
+            temp = [self.all_lst.append(x) for x in this_all_lst]
+            del temp
+            temp = [self.fuse_lst.append(x) for x in this_fuse_lst]
+            del temp
+
+            #todo: randomize lists
+
             if dataset_name == 'train':
                 self.add_noise = True
-                real_img_pth = os.path.join(
-                    this_cls_root, "train.txt"
-                )
-                this_real_lst = self.bs_utils.read_lines(real_img_pth)
-
-                rnd_img_ptn = os.path.join(
-                    self.root, 'renders/%s/*99.pkl' % cls_type   #Nachi: added 1
-                    #self.root, 'renders/%s/*[7-9].pkl' % cls_type   # Nachi: added 1
-                    #self.root, 'renders/%s/*.pkl' % cls_type#Nachi: added 1
-                )
-                this_rnd_lst = glob(rnd_img_ptn)
-                #todo: make it so root+item_name gives objectpath
-                print("render data length: ", len(this_rnd_lst))
-                if len(this_rnd_lst) == 0:
-                    warning = "Warning: "
-                    warning += "Trainnig without rendered data will hurt model performance \n"
-                    warning += "Please generate rendered data from https://github.com/ethnhe/raster_triangle.\n"
-                    print(colored(warning, "red", attrs=['bold']))
-
-                fuse_img_ptn = os.path.join(
-                    self.root, 'fuse/%s/*99.pkl' % cls_type#Nachi: added 1
-                    #self.root, 'fuse/%s/*[7-9].pkl' % cls_type#Nachi: added 1
-                    #self.root, 'fuse/%s/*.pkl' % cls_type#Nachi: added 1
-                )
-                this_fuse_lst = glob(fuse_img_ptn)
-                # todo: make it so root+item_name gives objectpath
-                print("fused data length: ", len(this_fuse_lst))
-                if len(this_fuse_lst) == 0:
-                    warning = "Warning: "
-                    warning += "Trainnig without fused data will hurt model performance \n"
-                    warning += "Please generate fused data from https://github.com/ethnhe/raster_triangle.\n"
-                    print(colored(warning, "red", attrs=['bold']))
-
-                # todo: adding required str addages to items in list.
-                #tmp = [x for x in this_real_lst if len(x) > 4]
-                #print('NACHI: BEFORE ADDING PREFIX  :', tmp)
-                this_real_lst = ['data/'+str(cls_id).zfill(2)+'/'+x for x in this_real_lst]
-                #this_fuse_lst = ['fuse/'+cls_type+'/'+x for x in this_fuse_lst]
-                #this_rnd_lst = ['renders/'+cls_type+'/'+x for x in this_rnd_lst]
-
-                this_all_lst = this_real_lst + this_rnd_lst + this_fuse_lst
-
-                allsize = len(this_all_lst)
-                realsize = len(this_real_lst)
-                fusesize = len(this_fuse_lst)
-                rendersize = len(this_rnd_lst)
-
-                self.lst_sizes[cls_type] = [allsize, realsize , fusesize , rendersize , 0]
-
-
-                temp = [self.all_lst.append(x) for x in this_all_lst]
-                del temp
-                temp = [self.real_lst.append(x) for x in this_real_lst]
-                del temp
-                temp = [self.rnd_lst.append(x) for x in this_rnd_lst]
-                del temp
-                temp = [self.fuse_lst.append(x) for x in this_fuse_lst]
-                del temp
-
+                self.all_lst = self.all_lst[:int(len(self.all_lst)*0.8)]
+                self.fuse_lst = self.all_lst
 
             else:
                 self.add_noise = False
-                tst_img_pth = os.path.join(this_cls_root, "test.txt")
-                this_tst_lst = self.bs_utils.read_lines(tst_img_pth)
-                this_tst_lst = ['data/'+str(cls_id).zfill(2)+'/'+x for x in this_tst_lst]
-                this_all_lst = this_tst_lst
+                self.all_lst = self.all_lst[int(len(self.all_lst) * 0.8):]
+                self.tst_lst = self.all_lst
 
-                allsize = len(this_all_lst)
-                tstsize = len(this_tst_lst)
-
-                self.lst_sizes[cls_type] = [allsize, 0, 0, 0, tstsize]
-
-                temp = [self.tst_lst.append(x) for x in this_tst_lst]
-                del temp
-                temp = [self.all_lst.append(x) for x in this_all_lst]
-                del temp
-
-        #todo: shuffle all_lst?
         print("{}_dataset_size: ".format(dataset_name), len(self.all_lst))
         self.minibatch_per_epoch = len(self.all_lst) // self.config.mini_batch_size
-
-    def real_syn_gen(self, real_ratio=0.3):
-        if len(self.rnd_lst+self.fuse_lst) == 0:
-            real_ratio = 1.0
-        if self.rng.rand() < real_ratio:  # real
-            n_imgs = len(self.real_lst)
-            idx = self.rng.randint(0, n_imgs)
-            pth = self.real_lst[idx]
-            return pth
-        else:
-            if len(self.fuse_lst) > 0 and len(self.rnd_lst) > 0:
-                fuse_ratio = 0.4
-            elif len(self.fuse_lst) == 0:
-                fuse_ratio = 0.
-            else:
-                fuse_ratio = 1.
-            if self.rng.rand() < fuse_ratio:
-                idx = self.rng.randint(0, len(self.fuse_lst))
-                pth = self.fuse_lst[idx]
-            else:
-                idx = self.rng.randint(0, len(self.rnd_lst))
-                pth = self.rnd_lst[idx]
-            return pth
 
     # todo: added cls_types and list lengths
     def real_gen(self, cls_type):
@@ -307,7 +244,10 @@ class Dataset():
                 #print(np.count_nonzero(labels))
                 #rows, cols = np.nonzero(labels)
                 #print(labels[rows, cols])
-                labels = (labels == cls_id).astype("uint8")
+
+                labels = (labels > 0).astype("uint8")
+                #labels = (labels == cls_id).astype("uint8")
+
                 #print(labels.shape)
                 #print(np.count_nonzero(labels))
                 #rows, cols = np.nonzero(labels)
@@ -373,7 +313,8 @@ class Dataset():
                 rgb = self.rgb_add_noise(rgb)
                 rgb_labels = labels.copy()
                 msk_dp = dpt_mm > 1e-6
-                rgb, dpt_mm = self.add_real_back(rgb, rgb_labels, dpt_mm, msk_dp, cls_root)       #todo: add arg: cls_root
+                #nachi: todo: maybe we need next line.
+                #rgb, dpt_mm = self.add_real_back(rgb, rgb_labels, dpt_mm, msk_dp, cls_root)       #todo: add arg: cls_root
                 if self.rng.rand() > 0.8:
                     rgb = self.rgb_add_noise(rgb)
 
@@ -414,21 +355,23 @@ class Dataset():
         rgb_pt = rgb.reshape(-1, 3)[choose, :].astype(np.float32)
         nrm_pt = nrm_map[:, :, :3].reshape(-1, 3)[choose, :]
         labels_pt = labels.flatten()[choose]
-        #todo: Nachi added
+        #Nachi added
         #print('NACHI LABELS_PT:')
         #print(labels_pt.shape)
         #print(np.count_nonzero(labels_pt))
-        pts = np.nonzero(labels_pt)
+        #pts = np.nonzero(labels_pt)
         #print(labels_pt[pts])
-        #todo: change self.cls_id to the value based on item_name, now cls_id should not be "self."
-        np.put(labels_pt, pts, cls_id, mode='raise')
+        #nachi: change self.cls_id to the value based on item_name, now cls_id should not be "self."
+        #np.put(labels_pt, pts, cls_id, mode='raise')
         #print('NACHI: post replacement')
         #print(labels_pt[pts])
         choose = np.array([choose])
         cld_rgb_nrm = np.concatenate((cld, rgb_pt, nrm_pt), axis=1).transpose(1, 0)
 
+        #todo: get cls_id_list
+        #cls_id_list = np.unique(labels_pt)
         RTs, kp3ds, ctr3ds, cls_ids, kp_targ_ofst, ctr_targ_ofst = self.get_pose_gt_info(               #todo: add self.cls_id
-            cld, labels_pt, RT, cls_type
+            cld, labels_pt, RT
         )
 
         h, w = rgb_labels.shape
@@ -534,7 +477,10 @@ class Dataset():
             item_dict['normal_map'] = nrm_map[:, :, :3].astype(np.float32)
         return item_dict
 
-    def get_pose_gt_info(self, cld, labels, RT, cls_type):            #todo: check for self...cls_type, all_lst. DEFINITELY add cls_type var, all list will probably be adjusted
+    def get_pose_gt_info(self, cld, labels, RT):            #todo: check for self...cls_type, all_lst. DEFINITELY add cls_type var, all list will probably be adjusted
+        #Nachi: this next line isnt cost efficient
+        cls_id_list = np.unique(labels)
+
         RTs = np.zeros((self.config.n_objects, 3, 4))
         kp3ds = np.zeros((self.config.n_objects, self.config.n_keypoints, 3))
         ctr3ds = np.zeros((self.config.n_objects, 3))
@@ -544,13 +490,13 @@ class Dataset():
         #todo: enumerate through cls_id_lst? then we should not need cls_type input arg, especially for test?
         # for i, cls_id in enumerate(self.config.lm_cls_lst):       #only through classes found in image
         # for i, cls_id in enumerate(np.unique(labels)):
-        for i, cls_id in enumerate([1]):
+        for i, cls_id in enumerate(cls_id_list):
             RTs[i] = RT
             r = RT[:, :3]
             t = RT[:, 3]
 
             #ctr = self.bs_utils.get_ctr(self.cls_lst[cls_id - 1]).copy()[:, None]
-            ctr = self.bs_utils.get_ctr(cls_type, ds_type="linemod")[:, None]
+            ctr = self.bs_utils.get_ctr(cls_id, ds_type="linemod")[:, None]
             ctr = np.dot(ctr.T, r.T) + t
             ctr3ds[i, :] = ctr[0]
             msk_idx = np.where(labels == cls_id)[0]
@@ -565,7 +511,7 @@ class Dataset():
             else:
                 kp_type = 'farthest{}'.format(self.config.n_keypoints)
             kps = self.bs_utils.get_kps(
-                cls_type, kp_type=kp_type, ds_type='linemod'
+                cls_id, kp_type=kp_type, ds_type='linemod'
             )
             kps = np.dot(kps, r.T) + t
             kp3ds[i] = kps
@@ -583,10 +529,13 @@ class Dataset():
 
     def __getitem__(self, idx):
         if self.dataset_name == 'train':
-            item_name = self.real_syn_gen()
+            n_imgs = len(self.fuse_lst)
+            rnd_idx = idx - self.rng.randint(0, n_imgs)
+            item_name = self.all_lst[rnd_idx]
             data = self.get_item(item_name)
             while data is None:
-                item_name = self.real_syn_gen()
+                rnd_idx = idx
+                item_name = self.all_lst[rnd_idx]
                 data = self.get_item(item_name)
             return data
         else:
