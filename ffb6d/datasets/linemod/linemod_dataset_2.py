@@ -172,7 +172,7 @@ class Dataset():
     def real_gen(self, cls_type):
         #n = len(self.real_lst)
         n = self.lst_sizes[cls_type][1]
-        idx = self.rng.randint(0, n)
+        idx = self.rng.randint(0, n-5)      #added -5 to dodge some file errors
         item = self.real_lst[idx]
         return item
 

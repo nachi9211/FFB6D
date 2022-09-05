@@ -165,6 +165,8 @@ class Basic_Utils():
         self.config = config
         if config.dataset_name == "ycb":
             self.ycb_cls_lst = config.ycb_cls_lst
+        else:
+            self.lm_cls_lst = config.lm_cls_lst
         self.ycb_cls_ptsxyz_dict = {}
         self.ycb_cls_ptsxyz_cuda_dict = {}
         self.ycb_cls_kps_dict = {}
@@ -572,6 +574,7 @@ class Basic_Utils():
     def get_kps(
         self, cls, kp_type='farthest', ds_type='ycb', kp_pth=None
     ):
+        #print('NACHI: get_kps  :', cls)
         if kp_pth:
             kps = np.loadtxt(kp_pth, dtype=np.float32)
             return kps
@@ -605,7 +608,8 @@ class Basic_Utils():
                     self.config.lm_kps_dir, "{}/{}.txt".format(cls, kp_type)
                 )
                 kps_pth = kps_pattern.format(cls)
-            print("kps_pth in get_kps:", kps_pth)
+            #Nachi commented out next line
+            #print("kps_pth in get_kps:", kps_pth)
             kps = np.loadtxt(kps_pth, dtype=np.float32)
             self.lm_cls_kps_dict[cls] = kps
         return kps.copy()

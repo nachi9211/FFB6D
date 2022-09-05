@@ -35,7 +35,8 @@ from models.att_loss import OFLoss, FocalLoss
 from utils.multilabel_pvn3d_eval_utils_kpls import TorchEval
 from utils.multilabel_basic_utils import Basic_Utils
 #import datasets.linemod.linemod_dataset_ml as dataset_desc
-import datasets.linemod.linemod_dataset_2 as dataset_desc
+#import datasets.linemod.linemod_dataset_2 as dataset_desc
+import datasets.linemod.linemod_dataset_fuse_only as dataset_desc
 
 from apex.parallel import DistributedDataParallel
 from apex.parallel import convert_syncbn_model
@@ -518,7 +519,7 @@ class Trainer(object):
         it = start_it
         _, eval_frequency = is_to_eval(0, it)
 
-        with tqdm.tqdm(range(config.n_total_epoch), desc="%s_epochs" % args.cls) as tbar, tqdm.tqdm(
+        with tqdm.tqdm(range(config.n_total_epoch), desc="n_epochs") as tbar, tqdm.tqdm(
             total=eval_frequency, leave=False, desc="train"
         ) as pbar:
 
@@ -692,7 +693,6 @@ def train():
             find_unused_parameters=True
         )
         clr_div = 2
-        #todo: make lr_scheduler_list?
 
         lr_scheduler = CyclicLR(
             optimizer, base_lr=1e-5, max_lr=1e-3,
@@ -728,7 +728,7 @@ def train():
 
     checkpoint_fd = config.log_model_dir
 
-    model_name = 'any3'
+    model_name = 'any_fo_20'
     trainer = Trainer(
         model,
         model_fn,

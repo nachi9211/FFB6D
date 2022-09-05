@@ -23,6 +23,7 @@ try:
     bs_utils_lm = Basic_Utils(config_lm)
 except Exception as ex:
     print(ex)
+cls_lst_lm = config_lm.lm_cls_lst
 
 
 def best_fit_transform(A, B):
@@ -405,11 +406,72 @@ class TorchEval():
         )
         pkl.dump(self.pred_id2pose_lst, open(sv_pth, 'wb'))
 
-    def cal_lm_add(self, obj_id, test_occ=False):
+    def cal_lm_add2(self, test_occ=False):
         add_auc_lst = []
         adds_auc_lst = []
         add_s_auc_lst = []
-        cls_id = obj_id
+
+        for cls_id in range(1, self.n_cls):
+            if (cls_id) in config_lm.lm_sym_cls_ids:
+                self.cls_add_s_dis[cls_id] = self.cls_adds_dis[cls_id]
+            else:
+                self.cls_add_s_dis[cls_id] = self.cls_add_dis[cls_id]
+            self.cls_add_s_dis[0] += self.cls_add_s_dis[cls_id]
+
+        for i in range(self.n_cls):
+            add_auc = bs_utils_lm.cal_auc(self.cls_add_dis[i])
+            adds_auc = bs_utils_lm.cal_auc(self.cls_adds_dis[i])
+            add_s_auc = bs_utils_lm.cal_auc(self.cls_add_s_dis[i])
+            add_auc_lst.append(add_auc)
+            adds_auc_lst.append(adds_auc)
+            add_s_auc_lst.append(add_s_auc)
+            if i == 0:
+                continue
+            print(cls_lst_lm[i-1])
+            print("***************add:\t", add_auc)
+            print("***************adds:\t", adds_auc)
+            print("***************add(-s):\t", add_s_auc)
+
+        n_objs = sum([len(l) for l in self.pred_kp_errs])
+        all_errs = 0.0
+        for cls_id in range(1, self.n_cls):
+            all_errs += sum(self.pred_kp_errs[cls_id])
+        print("mean kps errs:", all_errs / n_objs)
+
+        print("Average of all object:")
+        print("***************add:\t", np.mean(add_auc_lst[1:]))
+        print("***************adds:\t", np.mean(adds_auc_lst[1:]))
+        print("***************add(-s):\t", np.mean(add_s_auc_lst[1:]))
+
+        print("All object (following PoseCNN):")
+        print("***************add:\t", add_auc_lst[0])
+        print("***************adds:\t", adds_auc_lst[0])
+        print("***************add(-s):\t", add_s_auc_lst[0])
+
+        sv_info = dict(
+            add_dis_lst=self.cls_add_dis,
+            adds_dis_lst=self.cls_adds_dis,
+            add_auc_lst=add_auc_lst,
+            adds_auc_lst=adds_auc_lst,
+            add_s_auc_lst=add_s_auc_lst,
+            pred_kp_errs=self.pred_kp_errs,
+        )
+        sv_pth = os.path.join(
+            config.log_eval_dir,
+            'pvn3d_eval_cuda_{}_{}_{}.pkl'.format(
+                adds_auc_lst[0], add_auc_lst[0], add_s_auc_lst[0]
+            )
+        )
+        pkl.dump(sv_info, open(sv_pth, 'wb'))
+        sv_pth = os.path.join(
+            config.log_eval_dir,
+            'pvn3d_eval_cuda_{}_{}_{}_id2pose.pkl'.format(
+                adds_auc_lst[0], add_auc_lst[0], add_s_auc_lst[0]
+            )
+        )
+        pkl.dump(self.pred_id2pose_lst, open(sv_pth, 'wb'))
+
+        '''
         #todo: this seems to need looping, look at above func.
         if (obj_id) in config_lm.lm_sym_cls_ids:
             self.cls_add_s_dis[cls_id] = self.cls_adds_dis[cls_id]
@@ -452,8 +514,9 @@ class TorchEval():
             )
         )
         pkl.dump(sv_info, open(sv_pth, 'wb'))
+        '''
 
-    def cal_lm_add2(self, obj_id, test_occ=False):
+    def cal_lm_add(self, obj_id, test_occ=False):
         add_auc_lst = []
         adds_auc_lst = []
         add_s_auc_lst = []

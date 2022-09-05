@@ -14,6 +14,7 @@ from utils.multilabel_basic_utils import Basic_Utils
 import yaml
 import scipy.io as scio
 import scipy.misc
+import random
 from glob import glob
 from termcolor import colored
 import normalSpeed
@@ -45,9 +46,9 @@ class Dataset():
         self.all_lst = []
         self.meta_lst = {}
         self.lst_sizes = {}
+        self.fuse_lst = []
         if dataset_name == 'train':
             self.rnd_lst = []
-            self.fuse_lst = []
             self.real_lst = []
         else:
             self.tst_lst = []
@@ -63,14 +64,22 @@ class Dataset():
 
             self.meta_lst[cls_type] = yaml.load(meta_file, Loader=yaml.Loader)
 
-            fuse_img_ptn = os.path.join(
-                self.root, 'fuse/%s/*99.pkl' % cls_type  # Nachi: added 1
-                # self.root, 'fuse/%s/*[7-9].pkl' % cls_type#Nachi: added 1
-                # self.root, 'fuse/%s/*.pkl' % cls_type#Nachi: added 1
-            )
+            if dataset_name == 'train':
+                fuse_img_ptn = os.path.join(
+                    #self.root, 'fuse/%s/*98.pkl' % cls_type  # Nachi: added 1
+                    self.root, 'fuse/%s/*[7-9].pkl' % cls_type#Nachi: added 1
+                    #self.root, 'fuse/%s/*.pkl' % cls_type#Nachi: added 1
+                )
+            else:
+                fuse_img_ptn = os.path.join(
+                    #self.root, 'fuse/%s/*99.pkl' % cls_type  # Nachi: added 1
+                    #self.root, 'fuse/%s/*[7-9].pkl' % cls_type#Nachi: added 1
+                    self.root, 'fuse/%s/*9.pkl' % cls_type#Nachi: added 1
+                )
+
             this_fuse_lst = glob(fuse_img_ptn)
             # todo: make it so root+item_name gives objectpath
-            print("fused data length: ", len(this_fuse_lst))
+            print("fused data length, cls: ", len(this_fuse_lst), cls_type)
             if len(this_fuse_lst) == 0:
                 warning = "Warning: "
                 warning += "Trainnig without fused data will hurt model performance \n"
@@ -90,17 +99,17 @@ class Dataset():
             temp = [self.fuse_lst.append(x) for x in this_fuse_lst]
             del temp
 
-            #todo: randomize lists
+        #todo: randomize lists
+        random.shuffle(self.all_lst)
+        if dataset_name == 'train':
+            self.add_noise = True
+            #self.all_lst = self.all_lst[:int(len(self.all_lst)*0.8)]
+            self.fuse_lst = self.all_lst
 
-            if dataset_name == 'train':
-                self.add_noise = True
-                self.all_lst = self.all_lst[:int(len(self.all_lst)*0.8)]
-                self.fuse_lst = self.all_lst
-
-            else:
-                self.add_noise = False
-                self.all_lst = self.all_lst[int(len(self.all_lst) * 0.8):]
-                self.tst_lst = self.all_lst
+        else:
+            self.add_noise = False
+            #self.all_lst = self.all_lst[int(len(self.all_lst) * 0.8):]
+            self.tst_lst = self.all_lst
 
         print("{}_dataset_size: ".format(dataset_name), len(self.all_lst))
         self.minibatch_per_epoch = len(self.all_lst) // self.config.mini_batch_size
@@ -245,8 +254,12 @@ class Dataset():
                 #rows, cols = np.nonzero(labels)
                 #print(labels[rows, cols])
 
-                labels = (labels > 0).astype("uint8")
+                #print('NACHI: get_item:   uniquelabels  ', np.unique(labels))
+                #labels = (labels > 0).astype("uint8")
+                # todo: keep all labels, not just truth index for >0
                 #labels = (labels == cls_id).astype("uint8")
+                pass
+                #print('NACHI: get_item:   uniquelabelsafter  ', np.unique(labels))
 
                 #print(labels.shape)
                 #print(np.count_nonzero(labels))
@@ -480,6 +493,7 @@ class Dataset():
     def get_pose_gt_info(self, cld, labels, RT):            #todo: check for self...cls_type, all_lst. DEFINITELY add cls_type var, all list will probably be adjusted
         #Nachi: this next line isnt cost efficient
         cls_id_list = np.unique(labels)
+        #print('NACHI getposegtinfo unique_clsid: ', cls_id_list)
 
         RTs = np.zeros((self.config.n_objects, 3, 4))
         kp3ds = np.zeros((self.config.n_objects, self.config.n_keypoints, 3))
@@ -491,12 +505,15 @@ class Dataset():
         # for i, cls_id in enumerate(self.config.lm_cls_lst):       #only through classes found in image
         # for i, cls_id in enumerate(np.unique(labels)):
         for i, cls_id in enumerate(cls_id_list):
+
+            cls_id = int(cls_id)
+            #print('NACHI getposegtinfo i, cls_id: ', cls_id, type(cls_id))
             RTs[i] = RT
             r = RT[:, :3]
             t = RT[:, 3]
 
             #ctr = self.bs_utils.get_ctr(self.cls_lst[cls_id - 1]).copy()[:, None]
-            ctr = self.bs_utils.get_ctr(cls_id, ds_type="linemod")[:, None]
+            ctr = self.bs_utils.get_ctr(cls_id, ds_type="linemod")[:, None]         #todo: change this function for multi
             ctr = np.dot(ctr.T, r.T) + t
             ctr3ds[i, :] = ctr[0]
             msk_idx = np.where(labels == cls_id)[0]
@@ -510,7 +527,7 @@ class Dataset():
                 kp_type = 'farthest'
             else:
                 kp_type = 'farthest{}'.format(self.config.n_keypoints)
-            kps = self.bs_utils.get_kps(
+            kps = self.bs_utils.get_kps(                                            #todo: change this function for multi
                 cls_id, kp_type=kp_type, ds_type='linemod'
             )
             kps = np.dot(kps, r.T) + t

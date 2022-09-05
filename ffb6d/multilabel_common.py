@@ -13,7 +13,7 @@ class ConfigRandLA:
     k_n = 16  # KNN
     num_layers = 4  # Number of layers
     num_points = 480 * 640 // 24  # Number of input points
-    num_classes = 13+1  # Number of valid classes
+    num_classes = 15+1  # Number of valid classes
     sub_grid_size = 0.06  # preprocess_parameter
 
     batch_size = 1  # Nachi batch_size during training
@@ -63,7 +63,7 @@ class Config:
             os.path.join(self.exp_dir, 'train_log', self.dataset_name)
         )
         ensure_fd(self.log_dir)
-        self.model_name_tag = 'any3'
+        self.model_name_tag = 'any_fo_20'
         self.log_model_dir = os.path.join(self.log_dir, 'checkpoints', self.model_name_tag)   #Nachi: self.cls_type
         ensure_fd(self.log_model_dir)
         self.log_eval_dir = os.path.join(self.log_dir, 'eval_results', self.model_name_tag)   #self.cls_type
@@ -71,7 +71,7 @@ class Config:
         self.log_traininfo_dir = os.path.join(self.log_dir, 'train_info', self.model_name_tag)    #self.cls_type
         ensure_fd(self.log_traininfo_dir)
 
-        self.n_total_epoch = 1 #Nachi was 25
+        self.n_total_epoch = 20 #Nachi was 25
         self.mini_batch_size = 1  #Nachi was 3
         self.val_mini_batch_size = 1   #Nachi was 3
         self.test_mini_batch_size = 1
