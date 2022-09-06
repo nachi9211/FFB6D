@@ -6,6 +6,7 @@ from __future__ import (
     unicode_literals,
 )
 import os
+import random
 import time
 import tqdm
 import shutil
@@ -512,7 +513,7 @@ class Trainer(object):
             else:
                 eval_frequency = wid // 6
             #todo: Nachi
-            eval_freq = 25
+            eval_frequency = 25
             to_eval = (it % eval_frequency) == 0
             return to_eval, eval_frequency
 

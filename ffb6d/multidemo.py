@@ -166,17 +166,18 @@ def cal_view_pred_pose(model, data, epoch=0, obj_id=-1):
         temp_intensity_mat = temp_img.sum(axis=2)
         temp_non_zeros = np.nonzero(temp_intensity_mat)  #tuples, first shouldnt start with zeroes.
         #print(temp_non_zeros)
-        if temp_non_zeros[0][1]==0:
-            temp_img = np.zeros(temp_img.shape)
+        #todo: use next 2 statements
+        #if temp_non_zeros[0][1]==0:
+        #    temp_img = np.zeros(temp_img.shape)
 
 
         bgr_list.append(bgr)
         ori_bgr_list.append(ori_bgr)
 
-        #if args.show:
-        #    imshow("projected_pose_rgb", temp_img)      #480,640,3
-        #    imshow("original_rgb", ori_bgr)
-        #    waitKey()
+        if args.show:
+            imshow("projected_pose_rgb", temp_img)      #480,640,3
+            imshow("original_rgb", ori_bgr)
+            waitKey()
     if epoch == 0:
         print("\n\nResults saved in {}".format(vis_dir))
 
@@ -201,8 +202,10 @@ def main():
     trans_cfg = ConfigTrans
 
     #base_best_path = '/home/nachiket/Documents/saved_models/FFB_basic_best/LineMOD/FFB6D_'
-    base_pere_attffb_best_path = '/home/nachiket/Documents/train_log_backup/peregrine_models_AttFFB6D/AttFFB6D_'
+    base_pere_attffb_best_path = '/home/nachiket/Documents/train_log_backup/peregrine_models_AttFFB6D_run1/AttFFB6D_'
+    base_pere_attffb_fuse_best_path = '/home/nachiket/Documents/train_log_backup/peregrine_models_AttFFB6D_run1/AttFFB6D_'
     base_best_path = base_pere_attffb_best_path
+    base_best_path = base_pere_attffb_fuse_best_path
     models = {}
     filenames = {}
     for k in config.lm_obj_dict.keys():
@@ -224,7 +227,7 @@ def main():
         enumerate(test_loader), leave=False, desc="val"
     ):
         pcount+=1
-        if pcount>5:
+        if pcount>3:
             break
 
         predicted_points_list = []
