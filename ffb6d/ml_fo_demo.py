@@ -7,7 +7,6 @@ from __future__ import (
     unicode_literals,
 )
 import os
-import pandas as pd
 import tqdm
 import cv2
 import torch
@@ -15,12 +14,14 @@ import argparse
 import torch.nn as nn
 import numpy as np
 import pickle as pkl
-from common import Config, ConfigRandLA
-from models.ffb6d import FFB6D
+from multilabel_common import Config, ConfigRandLA, ConfigTrans
+#from models.ffb6d import FFB6D
+from models.multilabel_attentionffb import AttFFB6D as FFB6D
 from datasets.ycb.ycb_dataset import Dataset as YCB_Dataset
-from datasets.linemod.linemod_dataset import Dataset as LM_Dataset
-from utils.pvn3d_eval_utils_kpls import cal_frame_poses, cal_frame_poses_lm
-from utils.basic_utils import Basic_Utils
+from datasets.linemod.linemod_dataset_fuse_only import Dataset as LM_Dataset
+from utils.multilabel_pvn3d_eval_utils_kpls import cal_frame_poses, cal_frame_poses_lm2
+from utils.multilabel_basic_utils import Basic_Utils
+import pandas as pd
 try:
     from neupeak.utils.webcv2 import imshow, waitKey
 except ImportError:
@@ -98,12 +99,9 @@ def cal_view_pred_pose(model, data, epoch=0, obj_id=-1):
             elif data[key].dtype in [torch.int32, torch.int16]:
                 cu_dt[key] = data[key].long().cuda()
         end_points = model(cu_dt)
-
         end_points_df = pd.DataFrame(end_points.items())
-        # print(end_points_df.columns)
-        end_points_df.to_csv(
-            '/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/endpoints_df.csv')
-
+        #print(end_points_df.columns)
+        #end_points_df.to_csv('~/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/train_info/driller/endpoints_df_attffb.csv')
         _, classes_rgbd = torch.max(end_points['pred_rgbd_segs'], 1)
 
         pcld = cu_dt['cld_rgb_nrm'][:, :3, :].permute(0, 2, 1).contiguous()
@@ -114,23 +112,27 @@ def cal_view_pred_pose(model, data, epoch=0, obj_id=-1):
                 None, None
             )
         else:
-            pred_pose_lst = cal_frame_poses_lm(
+            pred_cls_ids, pred_pose_lst, _ = cal_frame_poses(
                 pcld[0], classes_rgbd[0], end_points['pred_ctr_ofs'][0],
-                end_points['pred_kp_ofs'][0], True, config.n_objects, False, obj_id
+                end_points['pred_kp_ofs'][0], True, config.n_objects, True,
+                None, None
             )
-            pred_cls_ids = np.array([[1]])
 
         np_rgb = cu_dt['rgb'].cpu().numpy().astype("uint8")[0].transpose(1, 2, 0).copy()
-        if args.dataset == "ycb":
-            np_rgb = np_rgb[:, :, ::-1].copy()
+
+        #if args.dataset == "ycb":
+        np_rgb = np_rgb[:, :, ::-1].copy()
+
         ori_rgb = np_rgb.copy()
         for cls_id in cu_dt['cls_ids'][0].cpu().numpy():
             idx = np.where(pred_cls_ids == cls_id)[0]
             if len(idx) == 0:
                 continue
             pose = pred_pose_lst[idx[0]]
-            if args.dataset == "ycb":
-                obj_id = int(cls_id[0])
+
+            #if args.dataset == "ycb":
+            obj_id = int(cls_id[0])
+
             mesh_pts = bs_utils.get_pointxyz(obj_id, ds_type=args.dataset).copy()
             mesh_pts = np.dot(mesh_pts, pose[:, :3].T) + pose[:, 3]
             if args.dataset == "ycb":
@@ -147,8 +149,11 @@ def cal_view_pred_pose(model, data, epoch=0, obj_id=-1):
             bgr = np_rgb
             ori_bgr = ori_rgb
         else:
-            bgr = np_rgb[:, :, ::-1]
-            ori_bgr = ori_rgb[:, :, ::-1]
+            #bgr = np_rgb[:, :, ::-1]
+            #ori_bgr = ori_rgb[:, :, ::-1]
+            bgr = np_rgb
+            ori_bgr = ori_rgb
+
         cv2.imwrite(f_pth, bgr)
         if args.show:
             imshow("projected_pose_rgb", bgr)
@@ -163,16 +168,17 @@ def main():
         test_ds = YCB_Dataset('test')
         obj_id = -1
     else:
-        test_ds = LM_Dataset('test', cls_type=args.cls)
-        obj_id = config.lm_obj_dict[args.cls]
+        test_ds = LM_Dataset('test')
+        obj_id = -1
     test_loader = torch.utils.data.DataLoader(
         test_ds, batch_size=config.test_mini_batch_size, shuffle=False,
         num_workers=20
     )
 
     rndla_cfg = ConfigRandLA
+    trans_cfg = ConfigTrans
     model = FFB6D(
-        n_classes=config.n_objects, n_pts=config.n_sample_points, rndla_cfg=rndla_cfg,
+        n_classes=config.n_objects, n_pts=config.n_sample_points, rndla_cfg=rndla_cfg, trans_cfg=trans_cfg,
         n_kps=config.n_keypoints
     )
     model.cuda()
@@ -183,13 +189,9 @@ def main():
             model, None, filename=args.checkpoint[:-8]
         )
 
-    pcount = 0
     for i, data in tqdm.tqdm(
         enumerate(test_loader), leave=False, desc="val"
     ):
-        pcount += 1
-        if pcount > 3:
-            break
         cal_view_pred_pose(model, data, epoch=i, obj_id=obj_id)
 
 

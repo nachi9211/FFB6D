@@ -6,8 +6,8 @@ from models.cnn.pspnet import PSPNet
 import models.pytorch_utils as pt_utils
 from models.RandLA.RandLANet import Network as RandLANet
 
-from common import Config, ConfigRandLA, ConfigTrans
-from utils.basic_utils import Basic_Utils
+from multilabel_common import Config, ConfigRandLA, ConfigTrans
+from utils.multilabel_basic_utils import Basic_Utils
 
 
 #import vit-pytorch
