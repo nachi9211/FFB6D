@@ -66,15 +66,15 @@ class Dataset():
 
             if dataset_name == 'train':
                 fuse_img_ptn = os.path.join(
-                    #self.root, 'fuse/%s/*98.pkl' % cls_type  # Nachi: added 1
-                    self.root, 'fuse/%s/*[7-9].pkl' % cls_type#Nachi: added 1
+                    self.root, 'fuse/%s/*98.pkl' % cls_type  # Nachi: added 1
+                    #self.root, 'fuse/%s/*[7-9].pkl' % cls_type#Nachi: added 1
                     #self.root, 'fuse/%s/*.pkl' % cls_type#Nachi: added 1
                 )
             else:
                 fuse_img_ptn = os.path.join(
-                    #self.root, 'fuse/%s/*99.pkl' % cls_type  # Nachi: added 1
+                    self.root, 'fuse/%s/*99.pkl' % cls_type  # Nachi: added 1
                     #self.root, 'fuse/%s/*[7-9].pkl' % cls_type#Nachi: added 1
-                    self.root, 'fuse/%s/*9.pkl' % cls_type#Nachi: added 1
+                    #self.root, 'fuse/%s/*9.pkl' % cls_type#Nachi: added 1
                 )
 
             this_fuse_lst = glob(fuse_img_ptn)

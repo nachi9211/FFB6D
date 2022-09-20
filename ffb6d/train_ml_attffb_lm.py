@@ -239,7 +239,9 @@ def model_fn_decorator(
         test_pose=False
     ):
         if finish_test:
-            teval.cal_lm_add(config.cls_id)
+            #todo: use teval.cal_
+            #teval.cal_lm_add(config.cls_id)
+            teval.cal_lm_add2()
             return None
         if is_eval:
             model.eval()
@@ -329,6 +331,29 @@ def model_fn_decorator(
 
                 if not args.test_gt:
                     # eval pose from point cloud prediction.
+                    teval.eval_pose_parallel2(
+                        cld, cu_dt['rgb'], cls_rgbd, end_points['pred_ctr_ofs'],
+                        cu_dt['ctr_targ_ofst'], labels, epoch, cu_dt['cls_ids'],
+                        cu_dt['RTs'], end_points['pred_kp_ofs'],
+                        cu_dt['kp_3ds'], cu_dt['ctr_3ds'],
+                        ds='linemod', obj_id=config.cls_id,
+                        min_cnt=1, use_ctr_clus_flter=True, use_ctr=True,
+                    )
+                else:
+                    # test GT labels, keypoint and center point offset
+                    gt_ctr_ofs = cu_dt['ctr_targ_ofst'].unsqueeze(2).permute(0, 2, 1, 3)
+                    gt_kp_ofs = cu_dt['kp_targ_ofst'].permute(0, 2, 1, 3)
+                    teval.eval_pose_parallel2(
+                        cld, cu_dt['rgb'], labels, gt_ctr_ofs,
+                        cu_dt['ctr_targ_ofst'], labels, epoch, cu_dt['cls_ids'],
+                        cu_dt['RTs'], gt_kp_ofs,
+                        cu_dt['kp_3ds'], cu_dt['ctr_3ds'],
+                        ds='linemod', obj_id=config.cls_id,
+                        min_cnt=1, use_ctr_clus_flter=True, use_ctr=True
+                    )
+                '''
+                    if not args.test_gt:
+                    # eval pose from point cloud prediction.
                     teval.eval_pose_parallel(
                         cld, cu_dt['rgb'], cls_rgbd, end_points['pred_ctr_ofs'],
                         cu_dt['ctr_targ_ofst'], labels, epoch, cu_dt['cls_ids'],
@@ -349,6 +374,7 @@ def model_fn_decorator(
                         ds='linemod', obj_id=config.cls_id,
                         min_cnt=1, use_ctr_clus_flter=True, use_ctr=True
                     )
+                '''
 
         return (
             end_points, loss, info_dict
@@ -729,7 +755,7 @@ def train():
 
     checkpoint_fd = config.log_model_dir
 
-    model_name = 'any_fo_20'
+    model_name = 'any_fo_19sept'
     trainer = Trainer(
         model,
         model_fn,

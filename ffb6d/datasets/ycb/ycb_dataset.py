@@ -50,6 +50,11 @@ class Dataset():
                     self.real_lst.append(item)
                 else:
                     self.syn_lst.append(item)
+
+            print('NACHI: YCB dataloader')
+            print(self.real_lst[0:5])
+            print(self.syn_lst[0:5])
+
         else:
             self.pp_data = None
             self.add_noise = False

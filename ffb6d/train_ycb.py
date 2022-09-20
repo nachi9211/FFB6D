@@ -391,7 +391,9 @@ class Trainer(object):
                 for k, v in acc_dict.items():
                     print(k, v, file=of)
         if args.local_rank == 0:
-            writer.add_scalars('val_acc', acc_dict, it)
+            for this_in, val in enumerate(acc_dict['acc_rgbd']):
+                writer.add_scalar(tag='val_acc', scalar_value=val, global_step=this_in)
+            #writer.add_scalars('val_acc', acc_dict, it)
 
         return total_loss / count, eval_dict
 
