@@ -44,6 +44,7 @@ class FocalLoss(_Loss):
         else: return loss.sum()
 
 
+#define loss calculating func
 def of_l1_loss(
         pred_ofsts, kp_targ_ofst, labels,
         sigma=1.0, normalize=True, reduce=False

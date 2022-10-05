@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import os
+import random
+
 import cv2
 import torch
 import os.path
@@ -42,7 +44,15 @@ class Dataset():
             self.add_noise = True
             self.path = 'datasets/ycb/dataset_config/train_data_list.txt'
             self.all_lst = bs_utils.read_lines(self.path)
+
+            #Nachi temp:
+            random.shuffle(self.all_lst)
+            self.all_lst = self.all_lst[:50] + self.all_lst[-50:]
+
             self.minibatch_per_epoch = len(self.all_lst) // config.mini_batch_size
+            print("{}_minibatch_size: ".format(dataset_name), self.minibatch_per_epoch)
+
+
             self.real_lst = []
             self.syn_lst = []
             for item in self.all_lst:
@@ -60,6 +70,11 @@ class Dataset():
             self.add_noise = False
             self.path = 'datasets/ycb/dataset_config/test_data_list.txt'
             self.all_lst = bs_utils.read_lines(self.path)
+
+            # Nachi temp:
+            random.shuffle(self.all_lst)
+            self.all_lst = self.all_lst[:5] + self.all_lst[-5:]
+
         print("{}_dataset_size: ".format(dataset_name), len(self.all_lst))
         self.root = config.ycb_root
         self.sym_cls_ids = [13, 16, 19, 20, 21]
@@ -73,6 +88,9 @@ class Dataset():
             n = len(self.syn_lst)
             idx = self.rng.randint(0, n)
             item = self.syn_lst[idx]
+
+
+        #Nachi:
         return item
 
     def real_gen(self):

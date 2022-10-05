@@ -272,7 +272,8 @@ class Dataset():
                 #print(np.count_nonzero(labels))
                 #rows, cols = np.nonzero(labels)
                 #print(labels[rows, cols])
-                labels = (labels > 0).astype("uint8")
+                #labels = (labels > 0).astype("uint8")
+                pass
                 #print(labels.shape)
                 #print(np.count_nonzero(labels))
                 #rows, cols = np.nonzero(labels)

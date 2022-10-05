@@ -25,13 +25,14 @@ from torch.optim.lr_scheduler import CyclicLR
 import torch.backends.cudnn as cudnn
 from tensorboardX import SummaryWriter
 
-from common import Config, ConfigRandLA
+from myycb_common import Config, ConfigRandLA, ConfigTrans
 import datasets.ycb.ycb_dataset as dataset_desc
+
 from utils.pvn3d_eval_utils_kpls import TorchEval
 from utils.basic_utils import Basic_Utils
 
 import models.pytorch_utils as pt_utils
-from models.attentionffb import ffb6d import FFB6D
+from models.attentionffb import AttFFB6D as FFB6D
 from models.loss import OFLoss, FocalLoss
 
 from apex.parallel import DistributedDataParallel
@@ -563,8 +564,9 @@ def train():
         )
 
     rndla_cfg = ConfigRandLA
+    trans_cfg = ConfigTrans
     model = FFB6D(
-        n_classes=config.n_objects, n_pts=config.n_sample_points, rndla_cfg=rndla_cfg,
+        n_classes=config.n_objects, n_pts=config.n_sample_points, rndla_cfg=rndla_cfg, trans_cfg=trans_cfg,
         n_kps=config.n_keypoints
     )
     model = convert_syncbn_model(model)
@@ -637,8 +639,8 @@ def train():
         model,
         model_fn,
         optimizer,
-        checkpoint_name=os.path.join(checkpoint_fd, "FFB6D"),
-        best_name=os.path.join(checkpoint_fd, "FFB6D_best"),
+        checkpoint_name=os.path.join(checkpoint_fd, "FFB6DYCB"),
+        best_name=os.path.join(checkpoint_fd, "FFB6DYCB_best"),
         lr_scheduler=lr_scheduler,
         bnm_scheduler=bnm_scheduler,
     )
@@ -651,6 +653,7 @@ def train():
         end = time.time()
         print("\nUse time: ", end - start, 's')
     else:
+        #print('Minibatch per epoch: ', train_ds.minibatch_per_epoch)
         trainer.train(
             it, start_epoch, config.n_total_epoch, train_loader, None,
             val_loader, best_loss=best_loss,

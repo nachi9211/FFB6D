@@ -1,19 +1,20 @@
 import torch
 import torch.nn as nn
+#import torch.einsum as einsum
 import torch.nn.functional as F
-from models.attentionNet import Attention, ViT, Transformer
+
 from models.cnn.pspnet import PSPNet
 import models.pytorch_utils as pt_utils
 from models.RandLA.RandLANet import Network as RandLANet
 
-from common import Config, ConfigRandLA, ConfigTrans
+from deepvit_common import Config, ConfigRandLA, ConfigTrans
 from utils.basic_utils import Basic_Utils
 
 
 #import vit-pytorch
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
-from attentionNet import Attention, FeedForward, ViT, pair
+from models.attention_helper_tool import DeepViT_Residual, DeepViT_PreNorm, DeepViT_FeedForward, DeepViT_Attention, DeepViT_Transformer
 
 psp_models = {
     'resnet18': lambda: PSPNet(sizes=(1, 2, 3, 6), psp_size=512, deep_features_size=256, backend='resnet18'),
@@ -166,9 +167,7 @@ class AttFFB6D(nn.Module):
         assert trans_cfg.pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
         self.to_patch_embedding = nn.Sequential(
-            #Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1=patch_height, p2=patch_width),
-            #Rearrange('b (h p1) (w p2) -> b (h w) (p1 p2)', p1=patch_height, p2=patch_width),
-            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1=patch_height, p2=patch_width),
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
             nn.Linear(patch_dim, trans_cfg.dim),
         )
 
@@ -177,20 +176,12 @@ class AttFFB6D(nn.Module):
         self.dropout = nn.Dropout(trans_cfg.emb_dropout)
 
 
-        #output dim of last layer: self.up_rgb_oc[-1]
+        #self.transformer = Transformer(trans_cfg.dim, trans_cfg.depth, trans_cfg.heads, trans_cfg.dim_head, trans_cfg.mlp_dim, trans_cfg.dropout)
+        self.transformer = DeepViT_Transformer(trans_cfg.dim, trans_cfg.depth, trans_cfg.heads, trans_cfg.dim_head, trans_cfg.mlp_dim, trans_cfg.dropout)
 
-
-        #OR: feed joint output as input.
-
-        self.transformer = Transformer(trans_cfg.dim, trans_cfg.depth, trans_cfg.heads, trans_cfg.dim_head, trans_cfg.mlp_dim, trans_cfg.dropout)
         #first remove embedding layer, then restore the
         self.revert_from_transformer = Rearrange('b p c -> b c p')
         #self.to_latent = nn.Identity()
-
-        #self.mlp_head = nn.Sequential(
-        #    nn.LayerNorm(trans_cfg.dim),  #trans_cfg.dim
-        #    nn.Linear(trans_cfg.dim, self.n_cls)
-        #)
 
         #todo:dont use prediction headers, end with attention+MLP(remove last layers of MLP) #
 
@@ -439,7 +430,8 @@ class AttFFB6D(nn.Module):
         b, n, _ = x.shape
         #print(x.size())     #1,12800,128
 
-        cls_tokens = repeat(self.cls_token, '1 1 d -> b 1 d', b=b)
+        #cls_tokens = repeat(self.cls_token, '1 1 d -> b 1 d', b=b)
+        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b=b)
         #print(cls_tokens.size())    #1,1,128
         x = torch.cat((cls_tokens, x), dim=1)
         #print('Nachi: post cls cat')
@@ -474,7 +466,10 @@ class AttFFB6D(nn.Module):
         #print(lastx)
         #return lastx
         x = x_data
+        #print('NACHI: transformer end', x.size())
         #Nachi: fuse new
+        #x = x[:,0]
+
         x = torch.cat([x, rgbd_emb], dim=1)
         # ###################### prediction stages #############################
         rgbd_segs = self.rgbd_seg_layer(x)

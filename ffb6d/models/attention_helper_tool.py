@@ -8,9 +8,6 @@ from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
 
-
-
-
 ######################################################################################################################
                                                         #ViT#
 ######################################################################################################################
@@ -174,8 +171,8 @@ class DeepViT_Transformer(nn.Module):
         self.layers = nn.ModuleList([])
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                Residual(PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout))),
-                Residual(PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout)))
+                DeepViT_Residual(DeepViT_PreNorm(dim, DeepViT_Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout))),
+                DeepViT_Residual(DeepViT_PreNorm(dim, DeepViT_FeedForward(dim, mlp_dim, dropout = dropout)))
             ]))
     def forward(self, x):
         for attn, ff in self.layers:
