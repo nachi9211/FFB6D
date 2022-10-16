@@ -22,6 +22,9 @@ except ImportError:
     from cv2 import imshow, waitKey
 
 
+import random
+
+
 class Dataset():
 
     def __init__(self, dataset_name, cls_type="duck", DEBUG=False):
@@ -84,6 +87,7 @@ class Dataset():
             tst_img_pth = os.path.join(self.cls_root, "test.txt")
             self.tst_lst = self.bs_utils.read_lines(tst_img_pth)
             self.all_lst = self.tst_lst
+            random.shuffle(self.all_lst)
         print("{}_dataset_size: ".format(dataset_name), len(self.all_lst))
 
     def real_syn_gen(self, real_ratio=0.3):

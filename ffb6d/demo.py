@@ -114,6 +114,7 @@ def cal_view_pred_pose(model, data, epoch=0, obj_id=-1):
                 None, None
             )
         else:
+            #todo: change this in other files to match ycb
             pred_pose_lst = cal_frame_poses_lm(
                 pcld[0], classes_rgbd[0], end_points['pred_ctr_ofs'][0],
                 end_points['pred_kp_ofs'][0], True, config.n_objects, False, obj_id

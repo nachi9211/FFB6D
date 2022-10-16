@@ -30,7 +30,7 @@ class ConfigRandLA:
 class ConfigTrans:
     #image_size = 64 #verified
     patch_size = 1
-    num_classes = 22 #object + background
+    num_classes = 2 #object + background
     dim = 128
     depth = 2
     heads = 2
@@ -60,7 +60,7 @@ class Config:
         # log folder
         self.cls_type = cls_type
         self.log_dir = os.path.abspath(
-            os.path.join(self.exp_dir, 'train_log_deep_ycb', self.dataset_name)
+            os.path.join(self.exp_dir, 'train_log', self.dataset_name)
         )
         ensure_fd(self.log_dir)
         self.log_model_dir = os.path.join(self.log_dir, 'checkpoints', self.cls_type)
@@ -70,7 +70,7 @@ class Config:
         self.log_traininfo_dir = os.path.join(self.log_dir, 'train_info', self.cls_type)
         ensure_fd(self.log_traininfo_dir)
 
-        self.n_total_epoch = 10 #Nachi was 25
+        self.n_total_epoch = 1 #Nachi was 25
         self.mini_batch_size = 1  #Nachi was 3
         self.val_mini_batch_size = 1   #Nachi was 3
         self.test_mini_batch_size = 1

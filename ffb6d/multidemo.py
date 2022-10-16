@@ -18,8 +18,11 @@ from common import Config, ConfigRandLA, ConfigTrans
 #from models.super_original_ffb6d import FFB6D
 #from models.ffb6d import FFB6D
 from models.attentionffb import AttFFB6D as FFB6D
+from models.
 from datasets.ycb.ycb_dataset import Dataset as YCB_Dataset
 from datasets.linemod.linemod_dataset import Dataset as LM_Dataset
+#from datasets.linemod.linemod_dataset_2 import Dataset as LM_Dataset
+#from datasets.linemod.linemod_dataset_fuse_only import Dataset as LM_Dataset
 from utils.pvn3d_eval_utils_kpls import cal_frame_poses, cal_frame_poses_lm
 from utils.basic_utils import Basic_Utils
 import pandas as pd
@@ -27,6 +30,8 @@ try:
     from neupeak.utils.webcv2 import imshow, waitKey
 except ImportError:
     from cv2 import imshow, waitKey
+
+from numpy import array, argwhere
 
 
 parser = argparse.ArgumentParser(description="Arg parser")
@@ -174,16 +179,24 @@ def cal_view_pred_pose(model, data, epoch=0, obj_id=-1):
         bgr_list.append(bgr)
         ori_bgr_list.append(ori_bgr)
 
-        if args.show:
-            imshow("projected_pose_rgb", temp_img)      #480,640,3
-            imshow("original_rgb", ori_bgr)
-            waitKey()
+        #if args.show:
+            #imshow("projected_pose_rgb", temp_img)      #480,640,3
+            #imshow("original_rgb", ori_bgr)
+            #waitKey()
     if epoch == 0:
         print("\n\nResults saved in {}".format(vis_dir))
 
     return temp_img, ori_bgr
     #return()
 
+def check_bounds(A):
+    print(A.shape)
+    A = A.sum(axis=2)
+    B = argwhere(A)
+    (ystart, xstart), (ystop, xstop) = B.min(0), B.max(0) + 1
+    Atrim = A[ystart:ystop, xstart:xstop]
+    dims = Atrim.shape
+    return dims
 
 def main():
     if args.dataset == "ycb":
@@ -202,10 +215,13 @@ def main():
     trans_cfg = ConfigTrans
 
     #base_best_path = '/home/nachiket/Documents/saved_models/FFB_basic_best/LineMOD/FFB6D_'
-    base_pere_attffb_best_path = '/home/nachiket/Documents/train_log_backup/peregrine_models_AttFFB6D_run1/AttFFB6D_'
-    base_pere_attffb_fuse_best_path = '/home/nachiket/Documents/train_log_backup/peregrine_models_AttFFB6D_run1/AttFFB6D_'
-    base_best_path = base_pere_attffb_best_path
-    base_best_path = base_pere_attffb_fuse_best_path
+    base_pere_attffb_best_path = '/home/nachiket/Documents/saved_models/otjer/peregrine_models_AttFFB6D_run1/AttFFB6D_'
+
+    base_pere_attffb_resupply_fuse_best_path = '/home/nachiket/Documents/train_log_backup/peregine_models_fused_and_attention_ATTFFB_run2/AttFFB6D_'
+
+
+    base_best_path = base_pere_attffb_resupply_fuse_best_path
+
     models = {}
     filenames = {}
     for k in config.lm_obj_dict.keys():
@@ -227,7 +243,7 @@ def main():
         enumerate(test_loader), leave=False, desc="val"
     ):
         pcount+=1
-        if pcount>3:
+        if pcount>30:
             break
 
         predicted_points_list = []
@@ -244,15 +260,20 @@ def main():
 
         ori = oriboylist[0]
         for img in predicted_points_list:
-            #imshow('ppoints: ',img)
-            #waitKey()
             if np.count_nonzero(img) > 0:
-                ori = ori + img
+                bounds = check_bounds(img)
+                if not (bounds[0]>=img.shape[0] or bounds[1]>=img.shape[1]):
+                    ori = ori + img
 
         if args.show:
-            imshow("projected_pose_rgb", ori)
-            imshow("original_rgb", oriboylist[0])
-            waitKey()
+            #imshow("projected_pose_rgb", ori)
+            #imshow("original_rgb", oriboylist[0])
+            #waitKey()
+            f_pth = os.path.join('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/eval_results/all/pose_vis', "result_{}.jpg".format(pcount))
+            cv2.imwrite(f_pth, ori)
+            f_pth = os.path.join('/home/nachiket/Documents/GitHub/FFB6D/ffb6d/train_log/linemod/eval_results/all/pose_vis', "original_{}.jpg".format(pcount))
+            cv2.imwrite(f_pth, oriboylist[0])
+            #waitKey()
 
 
 
