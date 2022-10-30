@@ -16,7 +16,8 @@ import numpy as np
 import pickle as pkl
 from common import Config, ConfigRandLA, ConfigTrans
 #from models.ffb6d import FFB6D
-from models.attentionffb import AttFFB6D as FFB6D
+#from models.attentionffb import AttFFB6D as FFB6D
+from models.deepvit_fuse_resupply import AttFFB6D as FFB6D
 from datasets.ycb.ycb_dataset import Dataset as YCB_Dataset
 from datasets.linemod.linemod_dataset import Dataset as LM_Dataset
 from utils.pvn3d_eval_utils_kpls import cal_frame_poses, cal_frame_poses_lm
@@ -138,7 +139,7 @@ def cal_view_pred_pose(model, data, epoch=0, obj_id=-1):
             mesh_p2ds = bs_utils.project_p3d(mesh_pts, 1.0, K)
             color = bs_utils.get_label_color(obj_id, n_obj=22, mode=2)
             np_rgb = bs_utils.draw_p2ds(np_rgb, mesh_p2ds, color=color)
-        vis_dir = os.path.join(config.log_eval_dir, "pose_vis")
+        vis_dir = os.path.join(config.log_eval_dir, "pose_vis_attffb_pere")
         ensure_fd(vis_dir)
         f_pth = os.path.join(vis_dir, "{}.jpg".format(epoch))
         if args.dataset == 'ycb':

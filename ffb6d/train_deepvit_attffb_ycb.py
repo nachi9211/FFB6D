@@ -25,7 +25,7 @@ from torch.optim.lr_scheduler import CyclicLR
 import torch.backends.cudnn as cudnn
 from tensorboardX import SummaryWriter
 
-from myycb_common import Config, ConfigRandLA, ConfigTrans
+from myycb_common import Config, ConfigRandLA, ConfigTrans #actually myycb_deep.common on peregrine.
 import datasets.ycb.ycb_dataset as dataset_desc
 
 from utils.pvn3d_eval_utils_kpls import TorchEval
@@ -641,8 +641,8 @@ def train():
         model,
         model_fn,
         optimizer,
-        checkpoint_name=os.path.join(checkpoint_fd, "FFB6DYCB"),
-        best_name=os.path.join(checkpoint_fd, "FFB6DYCB_best"),
+        checkpoint_name=os.path.join(checkpoint_fd, "DeepATTFFB6DYCB"),
+        best_name=os.path.join(checkpoint_fd, "DeepATTFFB6DYCB_best"),
         lr_scheduler=lr_scheduler,
         bnm_scheduler=bnm_scheduler,
     )

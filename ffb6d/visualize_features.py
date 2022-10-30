@@ -1,3 +1,5 @@
+#python3 -m torch.distributed.launch --nproc_per_node=1 train_lm.py --gpu '0' --cls $cls -eval_net -checkpoint $tst_mdl -test -test_pose
+
 from __future__ import (
     division,
     absolute_import,
@@ -26,16 +28,15 @@ from torch.optim.lr_scheduler import CyclicLR
 import torch.backends.cudnn as cudnn
 from tensorboardX import SummaryWriter
 
-#from common import Config, ConfigRandLA, ConfigTrans
-from deepvit_common import Config, ConfigRandLA, ConfigTrans
+from common import Config, ConfigRandLA, ConfigTrans
+#from deepvit_common import Config, ConfigRandLA, ConfigTrans
 
 import models.pytorch_utils as pt_utils
 
 #from models.ffb6d import FFB6D
-#from models.attentionffb import AttFFB6D as FFB6D
+from models.attentionffb import AttFFB6D as FFB6D
 #from models.attffb_fuse import AttFFB6D as FFB6D
 #from models.deepvit_fuse_resupply import AttFFB6D as FFB6D
-from models.deepvit_base import AttFFB6D as FFB6D
 
 
 
@@ -49,6 +50,7 @@ from apex.parallel import DistributedDataParallel
 from apex.parallel import convert_syncbn_model
 from apex import amp
 from apex.multi_tensor_apply import multi_tensor_applier
+
 
 
 
@@ -180,7 +182,7 @@ def checkpoint_state(model=None, optimizer=None, best_prec=None, epoch=None, it=
 
 def save_checkpoint(
         state, is_best, filename="att_checkpoint", bestname="att_model_best",
-        bestname_pure='deepattffb6d_best'
+        bestname_pure='attffb6d_best'
 ):
     filename = "{}.pth.tar".format(filename)
     torch.save(state, filename)
@@ -471,6 +473,7 @@ class Trainer(object):
                 writer.add_scalar(tag='val_acc', scalar_value=val, global_step=this_in)
 
             acc_dict['acc_rgbd'] = sum(acc_dict['acc_rgbd'][-1041:]) / 1041
+            #acc_dict['acc_rgbd'] = acc_dict['acc_rgbd'][-1]
             writer.add_scalars('val_acc_avg', acc_dict, it)
 
         return total_loss / count, eval_dict
@@ -619,26 +622,11 @@ def train():
     )
     torch.manual_seed(0)
 
-    if not args.eval_net:
-        train_ds = dataset_desc.Dataset('train', cls_type=args.cls)
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_ds)
-        train_loader = torch.utils.data.DataLoader(
-            train_ds, batch_size=config.mini_batch_size, shuffle=False,
-            drop_last=True, num_workers=4, sampler=train_sampler, pin_memory=True
-        )
-
-        val_ds = dataset_desc.Dataset('test', cls_type=args.cls)
-        val_sampler = torch.utils.data.distributed.DistributedSampler(val_ds)
-        val_loader = torch.utils.data.DataLoader(
-            val_ds, batch_size=config.val_mini_batch_size, shuffle=False,
-            drop_last=False, num_workers=4, sampler=val_sampler
-        )
-    else:
-        test_ds = dataset_desc.Dataset('test', cls_type=args.cls)
-        test_loader = torch.utils.data.DataLoader(
-            test_ds, batch_size=config.test_mini_batch_size, shuffle=False,
-            num_workers=10
-        )
+    test_ds = dataset_desc.Dataset('test', cls_type=args.cls)
+    test_loader = torch.utils.data.DataLoader(
+        test_ds, batch_size=config.test_mini_batch_size, shuffle=False,
+        num_workers=10
+    )
 
     rndla_cfg = ConfigRandLA
     trans_cfg = ConfigTrans
@@ -665,34 +653,15 @@ def train():
 
     # load status from checkpoint
     if args.checkpoint is not None:
-        if args.eval_net:
-            checkpoint_status = load_checkpoint(
-                model, None, filename=args.checkpoint[:-8]
-            )
-        else:
-            checkpoint_status = load_checkpoint(
-                model, optimizer, filename=args.checkpoint[:-8]
-            )
+        checkpoint_status = load_checkpoint(
+            model, None, filename=args.checkpoint[:-8]
+        )
         if checkpoint_status is not None:
             it, start_epoch, best_loss = checkpoint_status
-        if args.eval_net:
-            assert checkpoint_status is not None, "Failed loading model."
 
-    if not args.eval_net:
-        model = torch.nn.parallel.DistributedDataParallel(
-            model, device_ids=[args.local_rank], output_device=args.local_rank,
-            find_unused_parameters=True
-        )
-        clr_div = 2
-        lr_scheduler = CyclicLR(
-            optimizer, base_lr=1e-5, max_lr=1e-3,
-            cycle_momentum=False,
-            step_size_up=config.n_total_epoch * train_ds.minibatch_per_epoch // clr_div // args.gpus,
-            step_size_down=config.n_total_epoch * train_ds.minibatch_per_epoch // clr_div // args.gpus,
-            mode='triangular'
-        )
-    else:
-        lr_scheduler = None
+        assert checkpoint_status is not None, "Failed loadding model."
+
+    lr_scheduler = None
 
     bnm_lmbd = lambda it: max(
         args.bn_momentum
@@ -705,16 +674,10 @@ def train():
 
     it = max(it, 0)  # for the initialize value of `trainer.train`
 
-    if args.eval_net:
-        model_fn = model_fn_decorator(
-            FocalLoss(gamma=2), OFLoss(),
-            args.test,
-        )
-    else:
-        model_fn = model_fn_decorator(
-            FocalLoss(gamma=2).to(device), OFLoss().to(device),
-            args.test,
-        )
+    model_fn = model_fn_decorator(
+        FocalLoss(gamma=2), OFLoss(),
+        args.test,
+    )
 
     checkpoint_fd = config.log_model_dir
 
@@ -722,29 +685,22 @@ def train():
         model,
         model_fn,
         optimizer,
-        checkpoint_name=os.path.join(checkpoint_fd, "BasicDeepAttFFB6D_%s" % args.cls),
-        best_name=os.path.join(checkpoint_fd, "BasicDeepAttFFB6D_%s_best" % args.cls),
+        checkpoint_name=os.path.join(checkpoint_fd, "AttFFB6D_%s" % args.cls),
+        best_name=os.path.join(checkpoint_fd, "AttFFB6D_%s_best" % args.cls),
         lr_scheduler=lr_scheduler,
         bnm_scheduler=bnm_scheduler,
     )
 
-    if args.eval_net:
-        start = time.time()
-        val_loss, res = trainer.eval_epoch(
-            test_loader, is_test=True, test_pose=args.test_pose
-        )
-        end = time.time()
-        print("\nUse time: ", end - start, 's')
-    else:
-        trainer.train(
-            it, start_epoch, config.n_total_epoch, train_loader, None,
-            val_loader, best_loss=best_loss,
-            tot_iter=config.n_total_epoch * train_ds.minibatch_per_epoch // args.gpus,
-            clr_div=clr_div
-        )
 
-        if start_epoch == config.n_total_epoch:
-            _ = trainer.eval_epoch(val_loader)
+    start = time.time()
+    val_loss, res = trainer.eval_epoch(
+        test_loader, is_test=True, test_pose=args.test_pose
+    )
+    end = time.time()
+    print("\nUse time: ", end - start, 's')
+
+
+
 
 
 if __name__ == "__main__":

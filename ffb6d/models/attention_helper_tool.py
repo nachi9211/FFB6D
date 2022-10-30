@@ -76,8 +76,8 @@ class VIT_Transformer(nn.Module):
         self.layers = nn.ModuleList([])
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout)),
-                PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
+                VIT_PreNorm(dim, VIT_Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout)),
+                VIT_PreNorm(dim, VIT_FeedForward(dim, mlp_dim, dropout = dropout))
             ]))
     def forward(self, x):
         for attn, ff in self.layers:
