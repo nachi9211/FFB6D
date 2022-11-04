@@ -204,7 +204,7 @@ root_dir_deepvit_deadline = '/home/nachiket/Documents/saved_models/otjer/linemod
 
 
 root_dir_YCB_base = '/home/nachiket/Documents/saved_models/otjer/YCB_PERE_BASE/ycb/train_info/'
-dat, df = get_accumulator_data_ycb(root_dir_YCB_base, tag='AttFFB_YCB')
+#dat, df = get_accumulator_data_ycb(root_dir_YCB_base, tag='AttFFB_YCB')
 
 #empty
 rootdir_YCB_resupply = '/home/nachiket/Documents/saved_models/otjer/YCB_Resupply_Base/ycb/train_info/'
@@ -212,10 +212,16 @@ rootdir_YCB_resupply = '/home/nachiket/Documents/saved_models/otjer/YCB_Resupply
 
 
 rootdir_YCB_deepvit = '/home/nachiket/Documents/saved_models/otjer/YCB_BASE_DeepViT/ycb/train_info/'
-#dat, df = get_accumulator_data_ycb(rootdir_YCB_deepvit, tag='DeepAttFFB_YCB')
+dat, df = get_accumulator_data_ycb(rootdir_YCB_deepvit, tag='DeepAttFFB_YCB')
 
 
 
+root_dir_YCB_base2 = '/home/nachiket/Documents/saved_models/otjer/YCB_PERE_BASE2/ycb/train_info/'
+#dat, df = get_accumulator_data_ycb(root_dir_YCB_base2, tag='AttFFB_YCB')
+
+#empty
+rootdir_YCB_resupply2 = '/home/nachiket/Documents/saved_models/otjer/YCB_Resupply_Base_2/ycb/train_info/'
+#dat, df = get_accumulator_data_ycb(rootdir_YCB_resupply2, tag='AttFFB_YCB_RS')
 
 
 cls_color = [
